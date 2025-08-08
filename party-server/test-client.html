@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PartyKit Server Test</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .status {
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+        font-weight: bold;
+      }
+      .connected {
+        background-color: #d4edda;
+        color: #155724;
+      }
+      .disconnected {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+      .message {
+        background-color: #e7f3ff;
+        padding: 8px;
+        margin: 5px 0;
+        border-radius: 4px;
+        border-left: 4px solid #007bff;
+      }
+      button {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 5px;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+      button:disabled {
+        background-color: #6c757d;
+        cursor: not-allowed;
+      }
+      #messages {
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        padding: 10px;
+        background-color: #f8f9fa;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>PartyKit Server Test</h1>
+
+      <div id="status" class="status disconnected">Disconnected</div>
+
+      <div>
+        <button id="connectBtn" onclick="connect()">Connect</button>
+        <button id="disconnectBtn" onclick="disconnect()" disabled>
+          Disconnect
+        </button>
+        <button id="createGameBtn" onclick="createGame()" disabled>
+          Create Game
+        </button>
+        <button id="pingBtn" onclick="sendPing()" disabled>Send Ping</button>
+      </div>
+
+      <h3>Messages:</h3>
+      <div id="messages"></div>
+    </div>
+
+    <script type="module">
+      let socket = null;
+      const statusEl = document.getElementById("status");
+      const messagesEl = document.getElementById("messages");
+      const connectBtn = document.getElementById("connectBtn");
+      const disconnectBtn = document.getElementById("disconnectBtn");
+      const createGameBtn = document.getElementById("createGameBtn");
+      const pingBtn = document.getElementById("pingBtn");
+
+      function updateStatus(connected) {
+        statusEl.textContent = connected ? "Connected" : "Disconnected";
+        statusEl.className = `status ${
+          connected ? "connected" : "disconnected"
+        }`;
+        connectBtn.disabled = connected;
+        disconnectBtn.disabled = !connected;
+        createGameBtn.disabled = !connected;
+        pingBtn.disabled = !connected;
+      }
+
+      function addMessage(message) {
+        const messageEl = document.createElement("div");
+        messageEl.className = "message";
+        messageEl.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+        messagesEl.appendChild(messageEl);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+
+      window.connect = function () {
+        try {
+          socket = new WebSocket(
+            "ws://localhost:1999/parties/main/my-new-room"
+          );
+
+          socket.onopen = function () {
+            addMessage("Connected to server");
+            updateStatus(true);
+          };
+
+          socket.onmessage = function (event) {
+            addMessage(`Received: ${event.data}`);
+          };
+
+          socket.onclose = function () {
+            addMessage("Disconnected from server");
+            updateStatus(false);
+          };
+
+          socket.onerror = function (error) {
+            addMessage(`Error: ${error}`);
+            updateStatus(false);
+          };
+        } catch (error) {
+          addMessage(`Connection error: ${error.message}`);
+        }
+      };
+
+      window.disconnect = function () {
+        if (socket) {
+          socket.close();
+          socket = null;
+        }
+      };
+
+      window.createGame = function () {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          const message = JSON.stringify({ type: "create-game" });
+          socket.send(message);
+          addMessage(`Sent: ${message}`);
+        }
+      };
+
+      window.sendPing = function () {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send("ping");
+          addMessage("Sent: ping");
+        }
+      };
+    </script>
+  </body>
+</html>

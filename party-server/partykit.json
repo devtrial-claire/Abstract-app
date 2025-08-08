@@ -1,0 +1,12 @@
+{
+  "$schema": "https://www.partykit.io/schema.json",
+  "name": "party-server",
+  "main": "src/server.ts",
+  "serve": {
+    "path": "public",
+    "build": "src/client.ts"
+  },
+  "vars": {
+    "DEBUG": "true"
+  }
+}

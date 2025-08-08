@@ -13,7 +13,6 @@ export default function Home() {
   return (
     <div className="relative grid grid-rows-[1fr_auto] min-h-screen p-8 pb-20 sm:p-20 font-[family-name:var(--font-avenue-mono)] bg-black overflow-hidden">
       <BackgroundEffects />
-      <div>fsfsfs</div>
 
       <main className="relative flex flex-col items-center justify-center z-10 text-white text-center">
         <div className="flex flex-col items-center gap-8">
