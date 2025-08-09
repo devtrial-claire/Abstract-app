@@ -1,37 +1,3 @@
-// import type * as Party from "partykit/server";
-
-// export default class Server implements Party.Server {
-//   constructor(readonly room: Party.Room) {}
-
-//   onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
-//     // A websocket just connected!
-//     console.log(
-//       `Connected:
-//   id: ${conn.id}
-//   room: ${this.room.id}
-//   url: ${new URL(ctx.request.url).pathname}`
-//     );
-
-//     // let's send a message to the connection
-//     conn.send("hello from server");
-//   }
-
-//   onMessage(message: string, sender: Party.Connection) {
-//     // let's log the message
-//     console.log(`connection ${sender.id} sent message: ${message}`);
-//     // as well as broadcast it to all the other connections in the room...
-//     this.room.broadcast(
-//       `${sender.id}: ${message}`,
-//       // ...except for the connection it came from
-//       [sender.id]
-//     );
-//   }
-// }
-
-// Server satisfies Party.Worker;
-// src/server.ts
-// server.ts
-
 import type * as Party from "partykit/server";
 
 export default class GameServer implements Party.Server {
@@ -44,7 +10,14 @@ export default class GameServer implements Party.Server {
   onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
     // A new websocket connection is established
     this.connections.add(conn);
-    conn.send(JSON.stringify({ type: "connected" }));
+    conn.send(JSON.stringify({ type: "connected", id: conn.id }));
+    // send current open games to just-connected client
+    conn.send(
+      JSON.stringify({
+        type: "game-list-updated",
+        games: this.getGames(),
+      })
+    );
   }
 
   onClose(conn: Party.Connection) {
@@ -62,13 +35,21 @@ export default class GameServer implements Party.Server {
 
       switch (msg.type) {
         case "create-game":
-          this.handleCreateGame(sender);
+          this.handleCreateGame(sender, msg.senderId);
           break;
         case "join-game":
-          this.handleJoinGame(msg.gameId, sender);
+          this.handleJoinGame(msg.gameId, sender, msg.senderId);
           break;
         case "game-state":
           this.handleGetGameState(msg.gameId, sender);
+          break;
+        case "get-games":
+          sender.send(
+            JSON.stringify({
+              type: "game-list-updated",
+              games: this.getGames(),
+            })
+          );
           break;
         default:
           console.warn("Unknown message type:", msg.type);
@@ -84,63 +65,56 @@ export default class GameServer implements Party.Server {
     }
   }
 
-  private handleCreateGame(sender: Party.Connection) {
+  private handleCreateGame(sender: Party.Connection, senderId?: string) {
+    const pid = senderId ?? sender.id;
     const gameId = this.generateGameId();
     const gameState: GameState = {
       id: gameId,
       status: "waiting-for-players",
-      players: [sender.id],
+      players: [pid],
       cards: [],
-      balances: { [sender.id]: 25 },
+      balances: { [pid]: 25 },
     };
 
     this.games.set(gameId, gameState);
     sender.send(
-      JSON.stringify({
-        type: "game-created",
-        gameId,
-        status: gameState.status,
-      })
+      JSON.stringify({ type: "game-created", gameId, status: gameState.status })
     );
-
-    // Broadcast to all connections that a new game is available
     this.broadcastGameList();
   }
 
-  private handleJoinGame(gameId: string, sender: Party.Connection) {
+  private handleJoinGame(
+    gameId: string,
+    sender: Party.Connection,
+    senderId?: string
+  ) {
     const game = this.games.get(gameId);
-    if (!game) {
-      sender.send(
-        JSON.stringify({
-          type: "error",
-          message: "Game not found",
-        })
+    if (!game)
+      return sender.send(
+        JSON.stringify({ type: "error", message: "Game not found" })
       );
-      return;
+
+    const pid = senderId ?? sender.id;
+    if (game.players.includes(pid)) {
+      return sender.send(
+        JSON.stringify({ type: "game-state", gameState: game })
+      );
     }
+    if (game.players.length >= 2)
+      return sender.send(
+        JSON.stringify({ type: "error", message: "Game is full" })
+      );
+
+    game.players.push(pid);
+    game.balances[pid] = 25;
 
     if (game.players.length >= 2) {
-      sender.send(
-        JSON.stringify({
-          type: "error",
-          message: "Game is full",
-        })
-      );
-      return;
-    }
-
-    // Add player to game
-    game.players.push(sender.id);
-    game.balances[sender.id] = 25;
-
-    // If we have 2 players, start the game
-    if (game.players.length === 2) {
       game.status = "in-progress";
       game.cards = this.generateCards();
-      this.determineWinner(game);
+      this.broadcastGameUpdate(gameId);
+      this.broadcastGameList();
+      return;
     }
-
-    // Notify all players
     this.broadcastGameUpdate(gameId);
   }
 
@@ -213,11 +187,11 @@ export default class GameServer implements Party.Server {
   }
 
   private broadcastGameList() {
-    const openGames = this.getOpenGames();
+    const games = this.getGames();
     this.room.broadcast(
       JSON.stringify({
         type: "game-list-updated",
-        games: openGames,
+        games: games,
       })
     );
   }
@@ -235,10 +209,11 @@ export default class GameServer implements Party.Server {
     }
   }
 
-  private getOpenGames() {
-    return Array.from(this.games.values())
-      .filter((game) => game.status === "waiting-for-players")
-      .map((game) => ({ id: game.id, status: game.status }));
+  private getGames() {
+    return Array.from(this.games.values()).map((g) => ({
+      id: g.id,
+      status: g.status,
+    }));
   }
 }
 

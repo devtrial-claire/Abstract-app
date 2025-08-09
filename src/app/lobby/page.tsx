@@ -77,7 +77,9 @@ export default function LobbyPage() {
   const [games, setGames] = useState<Game[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [messages, setMessages] = useState<string[]>([]);
+  const [myId, setMyId] = useState<string | null>(null);
   const [currentGameId, setCurrentGameId] = useState<string | null>(null);
+  const [gameState, setGameState] = useState<any>(null);
 
   const socket = usePartySocket({
     host: "localhost:1999",
@@ -97,6 +99,19 @@ export default function LobbyPage() {
       const data = JSON.parse(event.data);
       console.log("Received message:", data);
       setMessages((prev) => [...prev, `Received: ${JSON.stringify(data)}`]);
+
+      if (data.type === "connected" && data.id) {
+        setMyId(data.id);
+        return;
+      }
+
+      if (
+        (data.type === "game-state" || data.type === "game-updated") &&
+        (data.gameState || data.game)
+      ) {
+        const gs = data.gameState ?? data.game; // fallback if some payloads still use `game`
+        setGameState(gs);
+      }
 
       if (data.type === "game-list-updated" && data.games) {
         setGames(data.games);
@@ -125,13 +140,14 @@ export default function LobbyPage() {
       socket.removeEventListener("close", handleClose);
       socket.removeEventListener("error", handleError);
     };
-  }, [socket]);
+  }, [socket, myId]);
 
-  const handleCreateGame = () => {
+  const handleCreateGame = (gameId: string) => {
     if (socket?.readyState === WebSocket.OPEN) {
       const message = JSON.stringify({ type: "create-game" });
       socket.send(message);
       setMessages((prev) => [...prev, `Sent: ${message}`]);
+      setCurrentGameId(gameId);
     }
   };
 
