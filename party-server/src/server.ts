@@ -51,6 +51,9 @@ export default class GameServer implements Party.Server {
             })
           );
           break;
+        case "reveal-winner":
+          this.handleRevealWinner(msg.gameId);
+          break;
         default:
           console.warn("Unknown message type:", msg.type);
       }
@@ -128,6 +131,14 @@ export default class GameServer implements Party.Server {
         })
       );
     }
+  }
+
+  private handleRevealWinner(gameId: string) {
+    const game = this.games.get(gameId);
+    if (!game) return;
+    // compute winner from the already-generated cards
+    this.determineWinner(game);
+    this.broadcastGameUpdate(gameId); // clients update to X_player_won / draw
   }
 
   private generateGameId(): string {
