@@ -9,12 +9,14 @@ import { ErrorPopup } from "@/components/ErrorScreen";
 interface Game {
   id: string;
   status: string;
+  player1?: string;
 }
 
 interface GameLobbyProps {
   games: Game[];
   onCreateGame: () => void;
   onJoinGame: (gameId: string) => void;
+  onJoinRandomBattle: () => void;
   isConnected: boolean;
 }
 
@@ -22,6 +24,7 @@ function GameLobby({
   games,
   onCreateGame,
   onJoinGame,
+  onJoinRandomBattle,
   isConnected,
 }: GameLobbyProps) {
   return (
@@ -34,8 +37,22 @@ function GameLobby({
         >
           Create New Battle
         </button>
-        <button className="border border-gray-300 bg-transparent px-4 py-2 rounded hover:bg-gray-100">
+        <button
+          onClick={onJoinRandomBattle}
+          disabled={
+            !isConnected ||
+            games.filter((g) => g.status === "waiting-for-players").length === 0
+          }
+          className="border border-gray-300 bg-transparent px-4 py-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           Join Random Battle
+          {games.filter((g) => g.status === "waiting-for-players").length >
+            0 && (
+            <span className="ml-2 text-xs bg-green-600 text-white px-2 py-1 rounded-full">
+              {games.filter((g) => g.status === "waiting-for-players").length}{" "}
+              available
+            </span>
+          )}
         </button>
       </div>
 
@@ -85,6 +102,12 @@ export default function LobbyPage() {
   const [showError, setShowError] = useState(false);
   const [showRejoinButton, setShowRejoinButton] = useState(false);
   const [playerCurrentGameId, setPlayerCurrentGameId] = useState<string | null>(
+    null
+  );
+
+  // Random battle state
+  const [showRandomBattleModal, setShowRandomBattleModal] = useState(false);
+  const [selectedRandomGame, setSelectedRandomGame] = useState<Game | null>(
     null
   );
 
@@ -299,6 +322,39 @@ export default function LobbyPage() {
     }
   };
 
+  const handleJoinRandomBattle = () => {
+    // Filter games that are waiting for players
+    const availableGames = games.filter(
+      (game) => game.status === "waiting-for-players"
+    );
+
+    if (availableGames.length === 0) {
+      setErrorMessage("No available battles to join");
+      setShowError(true);
+      return;
+    }
+
+    // Randomly select a game
+    const randomIndex = Math.floor(Math.random() * availableGames.length);
+    const randomGame = availableGames[randomIndex];
+
+    setSelectedRandomGame(randomGame);
+    setShowRandomBattleModal(true);
+  };
+
+  const handleConfirmRandomBattle = () => {
+    if (selectedRandomGame) {
+      setShowRandomBattleModal(false);
+      setSelectedRandomGame(null);
+      handleJoinGame(selectedRandomGame.id);
+    }
+  };
+
+  const handleCancelRandomBattle = () => {
+    setShowRandomBattleModal(false);
+    setSelectedRandomGame(null);
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
       {/* Error Popup - Always visible regardless of game state */}
@@ -315,6 +371,61 @@ export default function LobbyPage() {
         onRejoinGame={handleRejoinGame}
         showRejoinButton={showRejoinButton}
       />
+
+      {/* Random Battle Confirmation Modal */}
+      {showRandomBattleModal && selectedRandomGame && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold mb-4 text-white">
+              Join Random Battle
+            </h3>
+            <div className="mb-6">
+              <p className="text-gray-300 mb-2">
+                You're about to join a battle with:
+              </p>
+              <div className="bg-gray-700 rounded p-3 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400 text-sm">Status:</span>
+                  <span className="text-green-400 text-sm font-medium capitalize">
+                    {selectedRandomGame.status.replace(/-/g, " ")}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400 text-sm">Player 1:</span>
+                  <span className="text-white font-medium">
+                    {selectedRandomGame.player1
+                      ? `${selectedRandomGame.player1.slice(
+                          0,
+                          6
+                        )}...${selectedRandomGame.player1.slice(-4)}`
+                      : "Unknown"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400 text-sm">Battle ID:</span>
+                  <span className="text-gray-300 text-sm font-mono">
+                    {selectedRandomGame.id.slice(0, 8)}...
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleConfirmRandomBattle}
+                className="flex-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              >
+                Confirm Join
+              </button>
+              <button
+                onClick={handleCancelRandomBattle}
+                className="flex-1 bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <header className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold">Pokémon Betting Lobby</h1>
@@ -333,6 +444,7 @@ export default function LobbyPage() {
               games={games}
               onCreateGame={handleCreateGame}
               onJoinGame={handleJoinGame}
+              onJoinRandomBattle={handleJoinRandomBattle}
               isConnected={isConnected}
             />
           </div>

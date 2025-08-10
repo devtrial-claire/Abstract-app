@@ -287,6 +287,7 @@ export default class GameServer implements Party.Server {
     return Array.from(this.games.values()).map((g) => ({
       id: g.id,
       status: g.status,
+      player1: g.players[0] || null,
     }));
   }
 }

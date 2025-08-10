@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { usePartySocket } from "partysocket/react";
+import { useAccount } from "wagmi";
 
 type GameStatus =
   | "waiting-for-players"
@@ -25,6 +26,7 @@ export function BattleView({
   game: GameState;
   onLeave: () => void;
 }) {
+  const { address: myAddress } = useAccount();
   const socket = usePartySocket({
     host: "localhost:1999",
     room: "my-new-room",
@@ -37,6 +39,31 @@ export function BattleView({
 
   const [p1 = [], p2 = []] = game.cards ?? [];
   const betPerRound = 5; // 25 / 5 rounds
+
+  // Determine which player is the current user
+  const isPlayer1 = myAddress && game.players[0] === myAddress;
+  const isPlayer2 = myAddress && game.players[1] === myAddress;
+
+  // Determine if current user won
+  const currentUserWon =
+    (isPlayer1 && game.status === "1st_player_won") ||
+    (isPlayer2 && game.status === "2nd_player_won");
+
+  const currentUserLost =
+    (isPlayer1 && game.status === "2nd_player_won") ||
+    (isPlayer2 && game.status === "1st_player_won");
+
+  // Debug logging
+  console.log("BattleView - Wallet addresses:", {
+    myAddress,
+    player1: game.players[0],
+    player2: game.players[1],
+    isPlayer1,
+    isPlayer2,
+    gameStatus: game.status,
+    currentUserWon,
+    currentUserLost,
+  });
 
   const parse = (c: string) => {
     const [name, val] = c.split("#");
@@ -108,11 +135,15 @@ export function BattleView({
         {/* Player Balances */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="bg-gray-700 rounded-lg p-4">
-            <h3 className="text-lg font-semibold mb-2">YOU</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              {isPlayer1 ? "YOU" : isPlayer2 ? "OPPONENT" : "Player 1"}
+            </h3>
             <p className="text-2xl">${p1Bal.toFixed(1)}</p>
           </div>
           <div className="bg-gray-700 rounded-lg p-4">
-            <h3 className="text-lg font-semibold mb-2">OPPONENT</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              {isPlayer2 ? "YOU" : isPlayer1 ? "OPPONENT" : "Player 2"}
+            </h3>
             <p className="text-2xl">${p2Bal.toFixed(1)}</p>
           </div>
         </div>
@@ -128,12 +159,73 @@ export function BattleView({
           </div>
         </div>
 
+        {/* Winning Screen */}
+        {(game.status === "1st_player_won" ||
+          game.status === "2nd_player_won" ||
+          game.status === "draw") && (
+          <div className="text-center mb-8">
+            <div className="inline-block px-8 py-6 rounded-2xl bg-gradient-to-r from-yellow-400/20 to-green-400/20 border-2 border-yellow-400/40">
+              {game.status === "draw" ? (
+                <>
+                  <div className="text-4xl font-bold text-yellow-300 mb-2">
+                    🤝
+                  </div>
+                  <div className="text-2xl font-semibold text-yellow-200">
+                    DRAW!
+                  </div>
+                  <div className="text-lg text-gray-300 mt-2">It's a tie!</div>
+                </>
+              ) : currentUserWon ? (
+                <>
+                  <div className="text-4xl font-bold text-green-300 mb-2">
+                    🎉
+                  </div>
+                  <div className="text-3xl font-bold text-green-200 mb-2">
+                    YOU WIN!!
+                  </div>
+                  <div className="text-lg text-gray-300 mt-2">
+                    Congratulations!
+                  </div>
+                </>
+              ) : currentUserLost ? (
+                <>
+                  <div className="text-4xl font-bold text-red-300 mb-2">😔</div>
+                  <div className="text-3xl font-bold text-red-200 mb-2">
+                    YOU LOSE
+                  </div>
+                  <div className="text-lg text-gray-300 mt-2">
+                    Better luck next time!
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-4xl font-bold text-blue-300 mb-2">
+                    🏆
+                  </div>
+                  <div className="text-2xl font-semibold text-blue-200">
+                    Game Over
+                  </div>
+                  <div className="text-lg text-gray-300 mt-2">
+                    {game.status === "1st_player_won"
+                      ? "Player 1 won!"
+                      : "Player 2 won!"}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Poke Balls and Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center mb-8">
           {/* Your Poke Ball */}
           <div className="text-center">
             <div className="text-lg font-semibold text-blue-300 mb-4">
-              Your Card
+              {isPlayer1
+                ? "Your Card"
+                : isPlayer2
+                ? "Opponent Card"
+                : "Player 1 Card"}
             </div>
             <div className="relative">
               {/* Poke Ball */}
@@ -173,7 +265,11 @@ export function BattleView({
           {/* Opponent Poke Ball */}
           <div className="text-center">
             <div className="text-lg font-semibold text-red-300 mb-4">
-              Opponent Card
+              {isPlayer2
+                ? "Your Card"
+                : isPlayer1
+                ? "Opponent Card"
+                : "Player 2 Card"}
             </div>
             <div className="relative">
               {/* Poke Ball */}
@@ -230,6 +326,18 @@ export function BattleView({
           <h3 className="text-lg font-semibold mb-2">Status</h3>
           <p className="capitalize">{game.status.replace(/-/g, " ")}</p>
           {game.winner && <p className="mt-1">Winner: {game.winner}</p>}
+
+          {/* Debug Info */}
+          <div className="mt-4 p-3 bg-gray-700 rounded text-sm">
+            <h4 className="font-semibold mb-2">Debug Info:</h4>
+            <p>My Address: {myAddress || "Not connected"}</p>
+            <p>Player 1: {game.players[0] || "None"}</p>
+            <p>Player 2: {game.players[1] || "None"}</p>
+            <p>Is Player 1: {isPlayer1 ? "Yes" : "No"}</p>
+            <p>Is Player 2: {isPlayer2 ? "Yes" : "No"}</p>
+            <p>Current User Won: {currentUserWon ? "Yes" : "No"}</p>
+            <p>Current User Lost: {currentUserLost ? "Yes" : "No"}</p>
+          </div>
         </div>
       </div>
     </div>
