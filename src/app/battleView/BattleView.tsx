@@ -56,7 +56,7 @@ export function BattleView({
       const v1 = p1Vals[i] ?? 0;
       const v2 = p2Vals[i] ?? 0;
 
-      // Each round both “bet” $5. Higher card wins the $10 pot.
+      // Each round both "bet" $5. Higher card wins the $10 pot.
       if (v1 > v2) {
         setP1Bal((b) => b + betPerRound); // +5 net (5 won, 5 staked)
         setP2Bal((b) => b - betPerRound);
@@ -111,7 +111,7 @@ export function BattleView({
         </div>
       </div>
 
-      {/* 5-round “bet” animation */}
+      {/* 5-round "bet" animation */}
       <div className="bg-gray-900 rounded-lg p-4">
         <h3 className="text-lg font-semibold mb-4">
           Round {Math.min(round + 1, 5)} / 5

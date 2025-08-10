@@ -70,6 +70,26 @@ export default class GameServer implements Party.Server {
 
   private handleCreateGame(sender: Party.Connection, senderId?: string) {
     const pid = senderId ?? sender.id;
+
+    // Check if this wallet address already has an active game
+    for (const game of this.games.values()) {
+      if (
+        game.players.includes(pid) &&
+        game.status !== "1st_player_won" &&
+        game.status !== "2nd_player_won" &&
+        game.status !== "draw"
+      ) {
+        sender.send(
+          JSON.stringify({
+            type: "error",
+            message:
+              "You already have an active game. Please finish your current game first.",
+          })
+        );
+        return;
+      }
+    }
+
     const gameId = this.generateGameId();
     const gameState: GameState = {
       id: gameId,
@@ -98,11 +118,38 @@ export default class GameServer implements Party.Server {
       );
 
     const pid = senderId ?? sender.id;
+
+    // Check if this wallet address is already in this game
     if (game.players.includes(pid)) {
-      return sender.send(
-        JSON.stringify({ type: "game-state", gameState: game })
+      sender.send(
+        JSON.stringify({
+          type: "error",
+          message: "You are already in this game",
+        })
       );
+      return;
     }
+
+    // Check if this wallet address already has another active game
+    for (const otherGame of this.games.values()) {
+      if (
+        otherGame.id !== gameId &&
+        otherGame.players.includes(pid) &&
+        otherGame.status !== "1st_player_won" &&
+        otherGame.status !== "2nd_player_won" &&
+        otherGame.status !== "draw"
+      ) {
+        sender.send(
+          JSON.stringify({
+            type: "error",
+            message:
+              "You already have an active game. Please finish your current game first.",
+          })
+        );
+        return;
+      }
+    }
+
     if (game.players.length >= 2)
       return sender.send(
         JSON.stringify({ type: "error", message: "Game is full" })

@@ -105,16 +105,51 @@ export default function LobbyPage() {
         return;
       }
 
+      if (data.type === "game-created" && data.gameId) {
+        console.log(
+          "Lobby received game-created:",
+          data.gameId,
+          "setting currentGameId"
+        );
+        // When a game is created, set the currentGameId to show the GameRoom
+        setCurrentGameId(data.gameId);
+        console.log("currentGameId set to:", data.gameId);
+        return;
+      }
+
+      // Handle when a player successfully joins a game
+      if (data.type === "game-joined" && data.gameId) {
+        console.log(
+          "Lobby received game-joined:",
+          data.gameId,
+          "setting currentGameId"
+        );
+        setCurrentGameId(data.gameId);
+        return;
+      }
+
       if (
         (data.type === "game-state" || data.type === "game-updated") &&
         (data.gameState || data.game)
       ) {
         const gs = data.gameState ?? data.game; // fallback if some payloads still use `game`
         setGameState(gs);
+
+        // If we receive a game state update and the current player is in the game,
+        // make sure currentGameId is set
+        if (myId && gs.players?.includes(myId) && gs.id) {
+          setCurrentGameId(gs.id);
+        }
       }
 
       if (data.type === "game-list-updated" && data.games) {
         setGames(data.games);
+      }
+
+      // Handle error messages from server
+      if (data.type === "error") {
+        console.error("Server error:", data.message);
+        setMessages((prev) => [...prev, `Error: ${data.message}`]);
       }
     };
 
@@ -142,26 +177,40 @@ export default function LobbyPage() {
     };
   }, [socket, myId]);
 
-  const handleCreateGame = (gameId: string) => {
-    if (socket?.readyState === WebSocket.OPEN) {
-      const message = JSON.stringify({ type: "create-game" });
+  const handleCreateGame = () => {
+    if (socket?.readyState === WebSocket.OPEN && address) {
+      const message = JSON.stringify({
+        type: "create-game",
+        senderId: address,
+      });
       socket.send(message);
       setMessages((prev) => [...prev, `Sent: ${message}`]);
-      setCurrentGameId(gameId);
+      // Don't set currentGameId here - wait for server response
     }
   };
 
   const handleJoinGame = (gameId: string) => {
-    if (socket?.readyState === WebSocket.OPEN) {
-      const message = JSON.stringify({ type: "join-game", gameId });
+    if (socket?.readyState === WebSocket.OPEN && address) {
+      const message = JSON.stringify({
+        type: "join-game",
+        gameId,
+        senderId: address,
+      });
       socket.send(message);
       setMessages((prev) => [...prev, `Sent: ${message}`]);
       setCurrentGameId(gameId);
     }
   };
 
-  const handleLeaveGame = () => {
-    setCurrentGameId(null);
+  const handleLeaveGame = (gameStatus?: string) => {
+    // Only allow leaving if the game is finished
+    if (
+      gameStatus &&
+      ["1st_player_won", "2nd_player_won", "draw"].includes(gameStatus)
+    ) {
+      setCurrentGameId(null);
+    }
+    // If game is still active, don't allow leaving - stay in the game
   };
 
   return (
