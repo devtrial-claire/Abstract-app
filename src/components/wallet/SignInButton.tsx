@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import { useLoginWithAbstract } from "@abstract-foundation/agw-react";
 import { useAccount } from "wagmi";
@@ -6,6 +6,17 @@ import { useAccount } from "wagmi";
 export function SignInButton() {
   const { login } = useLoginWithAbstract();
   const { status } = useAccount();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  const handleLogin = async () => {
+    setIsLoggingIn(true);
+    try {
+      await login();
+    } catch (error) {
+      console.error("Login failed:", error);
+      setIsLoggingIn(false);
+    }
+  };
 
   if (status === "connecting" || status === "reconnecting") {
     return (
@@ -19,18 +30,27 @@ export function SignInButton() {
 
   return (
     <button
-      className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] hover:text-white hover:cursor-pointer dark:hover:bg-[#e0e0e0] dark:hover:text-black text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 font-[family-name:var(--font-roobert)]"
-      onClick={login}
+      className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-yellow-400 text-black gap-3 hover:bg-yellow-300 hover:cursor-pointer text-lg font-bold h-14 px-8 font-[family-name:var(--font-roobert)] shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+      onClick={handleLogin}
+      disabled={isLoggingIn}
     >
-      <Image
-        className="dark:invert"
-        src="/abs.svg"
-        alt="Abstract logomark"
-        width={20}
-        height={20}
-        style={{ filter: "brightness(0)" }}
-      />
-      Sign in with Abstract
+      {isLoggingIn ? (
+        <>
+          <div className="animate-spin w-6 h-6 border-2 border-black border-t-transparent rounded-full"></div>
+          Connecting...
+        </>
+      ) : (
+        <>
+          <Image
+            src="/abs.svg"
+            alt="Abstract logomark"
+            width={24}
+            height={24}
+            style={{ filter: "brightness(0)" }}
+          />
+          Login to Play
+        </>
+      )}
     </button>
   );
 }

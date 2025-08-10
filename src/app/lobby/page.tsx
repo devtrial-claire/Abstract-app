@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { usePartySocket } from "partysocket/react";
+import { useLoginWithAbstract } from "@abstract-foundation/agw-react";
 import { GameRoom } from "./GameRoom";
 import { ErrorPopup } from "@/components/ErrorScreen";
 
@@ -91,7 +92,8 @@ function GameLobby({
 }
 
 export default function LobbyPage() {
-  const { address } = useAccount();
+  const { address, status } = useAccount();
+  const { logout } = useLoginWithAbstract();
   const [games, setGames] = useState<Game[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [messages, setMessages] = useState<string[]>([]);
@@ -111,10 +113,20 @@ export default function LobbyPage() {
     null
   );
 
+  // Disconnect confirmation state
+  const [showDisconnectModal, setShowDisconnectModal] = useState(false);
+
   const socket = usePartySocket({
     host: "localhost:1999",
     room: "my-new-room",
   });
+
+  // Check wallet connection and redirect if not connected
+  useEffect(() => {
+    if (status === "disconnected" || (!address && status !== "connecting")) {
+      window.location.href = "http://localhost:3000/";
+    }
+  }, [address, status]);
 
   useEffect(() => {
     if (!socket) return;
@@ -355,6 +367,42 @@ export default function LobbyPage() {
     setSelectedRandomGame(null);
   };
 
+  const handleDisconnectClick = () => {
+    setShowDisconnectModal(true);
+  };
+
+  const handleConfirmDisconnect = async () => {
+    setShowDisconnectModal(false);
+    try {
+      await logout();
+      // Redirect to home page after successful logout
+      window.location.href = "http://localhost:3000/";
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
+
+  const handleCancelDisconnect = () => {
+    setShowDisconnectModal(false);
+  };
+
+  // Show loading while wallet is connecting
+  if (status === "connecting" || status === "reconnecting") {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin w-16 h-16 border-4 border-white border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-lg">Connecting to wallet...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render anything if not connected (will redirect)
+  if (!address || status !== "connected") {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
       {/* Error Popup - Always visible regardless of game state */}
@@ -427,10 +475,50 @@ export default function LobbyPage() {
         </div>
       )}
 
+      {/* Disconnect Confirmation Modal */}
+      {showDisconnectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold mb-4 text-white">
+              Disconnect Wallet
+            </h3>
+            <div className="mb-6">
+              <p className="text-gray-300">
+                Are you sure you want to disconnect your wallet? You will be
+                redirected to the login page.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleConfirmDisconnect}
+                className="flex-1 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+              >
+                Disconnect
+              </button>
+              <button
+                onClick={handleCancelDisconnect}
+                className="flex-1 bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold">Pokémon Betting Lobby</h1>
-        <div className="text-sm">
-          Connected: {address?.slice(0, 6)}...{address?.slice(-4)}
+        <div className="flex items-center gap-4">
+          <div className="text-sm">
+            Connected: {address?.slice(0, 6)}...{address?.slice(-4)}
+          </div>
+          <button
+            onClick={handleDisconnectClick}
+            className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
+            title="Disconnect wallet"
+          >
+            Disconnect
+          </button>
         </div>
       </header>
 
