@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { usePartySocket } from "partysocket/react";
 import { GameRoom } from "./GameRoom";
+import { ErrorPopup } from "@/components/ErrorScreen";
 
 interface Game {
   id: string;
@@ -80,6 +81,12 @@ export default function LobbyPage() {
   const [myId, setMyId] = useState<string | null>(null);
   const [currentGameId, setCurrentGameId] = useState<string | null>(null);
   const [gameState, setGameState] = useState<any>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showError, setShowError] = useState(false);
+  const [showRejoinButton, setShowRejoinButton] = useState(false);
+  const [playerCurrentGameId, setPlayerCurrentGameId] = useState<string | null>(
+    null
+  );
 
   const socket = usePartySocket({
     host: "localhost:1999",
@@ -113,6 +120,7 @@ export default function LobbyPage() {
         );
         // When a game is created, set the currentGameId to show the GameRoom
         setCurrentGameId(data.gameId);
+        setPlayerCurrentGameId(data.gameId); // Track the game this player created
         console.log("currentGameId set to:", data.gameId);
         return;
       }
@@ -125,6 +133,11 @@ export default function LobbyPage() {
           "setting currentGameId"
         );
         setCurrentGameId(data.gameId);
+        // Also set playerCurrentGameId if not already set
+        if (!playerCurrentGameId) {
+          setPlayerCurrentGameId(data.gameId);
+          console.log("Set playerCurrentGameId from game-joined:", data.gameId);
+        }
         return;
       }
 
@@ -150,6 +163,33 @@ export default function LobbyPage() {
       if (data.type === "error") {
         console.error("Server error:", data.message);
         setMessages((prev) => [...prev, `Error: ${data.message}`]);
+        setErrorMessage(data.message);
+
+        // Check if this is the "active game" error and set rejoin button
+        if (data.message.includes("already have an active game")) {
+          console.log("Setting rejoin button for active game error");
+          // Use currentGameId from server error if available, otherwise use playerCurrentGameId
+          if (data.currentGameId) {
+            setPlayerCurrentGameId(data.currentGameId);
+            console.log(
+              "Set playerCurrentGameId from server error:",
+              data.currentGameId
+            );
+          }
+          setShowRejoinButton(true);
+        } else {
+          setShowRejoinButton(false);
+        }
+
+        console.log(
+          "Showing error popup with message:",
+          data.message,
+          "showRejoinButton:",
+          data.message.includes("already have an active game"),
+          "currentGameId from server:",
+          data.currentGameId
+        );
+        setShowError(true);
       }
     };
 
@@ -177,6 +217,20 @@ export default function LobbyPage() {
     };
   }, [socket, myId]);
 
+  // Debug logging for error state changes
+  useEffect(() => {
+    console.log(
+      "Error state changed - showError:",
+      showError,
+      "errorMessage:",
+      errorMessage,
+      "showRejoinButton:",
+      showRejoinButton,
+      "playerCurrentGameId:",
+      playerCurrentGameId
+    );
+  }, [showError, errorMessage, showRejoinButton, playerCurrentGameId]);
+
   const handleCreateGame = () => {
     if (socket?.readyState === WebSocket.OPEN && address) {
       const message = JSON.stringify({
@@ -198,7 +252,7 @@ export default function LobbyPage() {
       });
       socket.send(message);
       setMessages((prev) => [...prev, `Sent: ${message}`]);
-      setCurrentGameId(gameId);
+      // Don't set currentGameId here - wait for server response
     }
   };
 
@@ -209,12 +263,59 @@ export default function LobbyPage() {
       ["1st_player_won", "2nd_player_won", "draw"].includes(gameStatus)
     ) {
       setCurrentGameId(null);
+      setPlayerCurrentGameId(null); // Clear the tracked game when leaving
     }
     // If game is still active, don't allow leaving - stay in the game
   };
 
+  const handleRejoinGame = () => {
+    console.log(
+      "handleRejoinGame called with playerCurrentGameId:",
+      playerCurrentGameId
+    );
+    if (playerCurrentGameId) {
+      console.log("Rejoining game:", playerCurrentGameId);
+      setCurrentGameId(playerCurrentGameId);
+      setShowError(false);
+      setErrorMessage(null);
+      setShowRejoinButton(false);
+
+      // Request current game state when rejoining
+      if (socket?.readyState === WebSocket.OPEN) {
+        const message = JSON.stringify({
+          type: "game-state",
+          gameId: playerCurrentGameId,
+          senderId: address,
+        });
+        socket.send(message);
+        setMessages((prev) => [
+          ...prev,
+          `Requesting game state for: ${playerCurrentGameId}`,
+        ]);
+        console.log("Sent game state request for:", playerCurrentGameId);
+      }
+    } else {
+      console.log("No playerCurrentGameId available for rejoin");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
+      {/* Error Popup - Always visible regardless of game state */}
+      <ErrorPopup
+        message={errorMessage || ""}
+        isVisible={showError}
+        onClose={() => {
+          setShowError(false);
+          setErrorMessage(null);
+          setShowRejoinButton(false);
+        }}
+        autoClose={true}
+        autoCloseDelay={5000}
+        onRejoinGame={handleRejoinGame}
+        showRejoinButton={showRejoinButton}
+      />
+
       <header className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold">Pokémon Betting Lobby</h1>
         <div className="text-sm">

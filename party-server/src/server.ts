@@ -84,6 +84,8 @@ export default class GameServer implements Party.Server {
             type: "error",
             message:
               "You already have an active game. Please finish your current game first.",
+            currentGameId: game.id,
+            currentGameStatus: game.status,
           })
         );
         return;
@@ -121,9 +123,12 @@ export default class GameServer implements Party.Server {
 
     // Check if this wallet address is already in this game
     if (game.players.includes(pid)) {
+      // Instead of error, send a redirect message to their existing game
       sender.send(
         JSON.stringify({
-          type: "error",
+          type: "game-joined",
+          gameId: gameId,
+          status: game.status,
           message: "You are already in this game",
         })
       );
@@ -144,6 +149,8 @@ export default class GameServer implements Party.Server {
             type: "error",
             message:
               "You already have an active game. Please finish your current game first.",
+            currentGameId: otherGame.id,
+            currentGameStatus: otherGame.status,
           })
         );
         return;
@@ -157,6 +164,15 @@ export default class GameServer implements Party.Server {
 
     game.players.push(pid);
     game.balances[pid] = 25;
+
+    // Send success message to the player who joined
+    sender.send(
+      JSON.stringify({
+        type: "game-joined",
+        gameId: gameId,
+        status: game.status,
+      })
+    );
 
     if (game.players.length >= 2) {
       game.status = "in-progress";

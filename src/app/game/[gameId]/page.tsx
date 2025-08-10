@@ -5,6 +5,7 @@ import { usePartySocket } from "partysocket/react";
 import { useAccount } from "wagmi";
 import { WaitingRoom } from "@/app/waitingRoom/WaitingRoom";
 import { BattleView } from "@/app/battleView/BattleView";
+import { ErrorPopup } from "@/components/ErrorScreen";
 
 type GameStatus =
   | "waiting-for-players"
@@ -27,6 +28,12 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
   const { address: myId } = useAccount();
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showError, setShowError] = useState(false);
+  const [showRejoinButton, setShowRejoinButton] = useState(false);
+  const [playerCurrentGameId, setPlayerCurrentGameId] = useState<string | null>(
+    null
+  );
 
   const socket = usePartySocket({
     host: "localhost:1999",
@@ -47,6 +54,26 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
       ) {
         const gs = data.gameState;
         setGameState(gs);
+      }
+
+      // Handle error messages from server
+      if (data.type === "error") {
+        console.error("Server error:", data.message);
+        setMessages((prev) => [...prev, `Error: ${data.message}`]);
+        setErrorMessage(data.message);
+
+        // Check if this is the "active game" error and we have a current game ID
+        if (
+          data.message.includes("already have an active game") &&
+          params.gameId
+        ) {
+          setShowRejoinButton(true);
+          setPlayerCurrentGameId(params.gameId);
+        } else {
+          setShowRejoinButton(false);
+        }
+
+        setShowError(true);
       }
     };
 
@@ -82,6 +109,16 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
     }
   };
 
+  const handleRejoinGame = () => {
+    if (playerCurrentGameId) {
+      // Navigate back to the current game
+      router.push(`/game/${playerCurrentGameId}`);
+      setShowError(false);
+      setErrorMessage(null);
+      setShowRejoinButton(false);
+    }
+  };
+
   console.log(
     "Game page render - gameState:",
     gameState,
@@ -92,10 +129,44 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
   // Show waiting room if game is not loaded yet or if waiting for players
   if (!gameState || gameState.status === "waiting-for-players") {
     console.log("Rendering WaitingRoom - gameState:", gameState);
-    return <WaitingRoom />;
+    return (
+      <>
+        <WaitingRoom />
+        <ErrorPopup
+          message={errorMessage || ""}
+          isVisible={showError}
+          onClose={() => {
+            setShowError(false);
+            setErrorMessage(null);
+            setShowRejoinButton(false);
+          }}
+          autoClose={true}
+          autoCloseDelay={5000}
+          onRejoinGame={handleRejoinGame}
+          showRejoinButton={showRejoinButton}
+        />
+      </>
+    );
   }
 
   // Show battle view if game is in progress or finished
   console.log("Rendering BattleView - gameState:", gameState);
-  return <BattleView game={gameState} onLeave={handleLeaveWrapper} />;
+  return (
+    <>
+      <BattleView game={gameState} onLeave={handleLeaveWrapper} />
+      <ErrorPopup
+        message={errorMessage || ""}
+        isVisible={showError}
+        onClose={() => {
+          setShowError(false);
+          setErrorMessage(null);
+          setShowRejoinButton(false);
+        }}
+        autoClose={true}
+        autoCloseDelay={5000}
+        onRejoinGame={handleRejoinGame}
+        showRejoinButton={showRejoinButton}
+      />
+    </>
+  );
 }
