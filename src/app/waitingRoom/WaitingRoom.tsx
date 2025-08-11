@@ -19,12 +19,19 @@ export function WaitingRoom() {
           </div>
         </div>
 
-        {/* Bottom banner */}
+        {/* Bottom banner with enhanced animation */}
         <div className="relative mt-10">
-          <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-yellow-300 via-lime-300 to-cyan-400 opacity-40 blur-lg" />
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-yellow-300 via-lime-300 to-cyan-400 opacity-40 blur-lg animate-pulse waiting-glow" />
           <div className="relative rounded-xl border border-white/10 bg-neutral-900/60 px-6 py-8 text-center">
-            <div className="text-3xl md:text-4xl font-extrabold tracking-wide text-yellow-200">
+            <div className="text-3xl md:text-4xl font-extrabold tracking-wide text-yellow-200 pulse-glow-text float-animation">
               WAITING FOR OPPONENT
+            </div>
+            {/* Enhanced scanning line animation */}
+            <div className="mt-6 relative h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent rounded-full overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent animate-pulse opacity-60"></div>
+              <div className="h-full bg-gradient-to-r from-yellow-400 via-lime-400 to-cyan-400 animate-pulse"></div>
+              {/* Custom scanning line */}
+              <div className="absolute top-0 left-0 w-1/3 h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-80 scan-line"></div>
             </div>
           </div>
         </div>
