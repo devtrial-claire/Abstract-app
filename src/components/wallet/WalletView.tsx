@@ -114,7 +114,7 @@ export function WalletView() {
   }, [walletBalance, transactions, address]);
 
   const socket = usePartySocket({
-    host: "localhost:1999",
+    host: "c61a0ed7673a.ngrok-free.app",
     room: "my-new-room",
   });
 

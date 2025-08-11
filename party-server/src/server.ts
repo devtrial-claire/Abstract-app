@@ -11,6 +11,9 @@ export default class GameServer implements Party.Server {
   walletBalances = new Map<string, number>();
   transactionHistory = new Map<string, any[]>();
 
+  // Store rematch requests
+  rematchRequests = new Map<string, Set<string>>();
+
   onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
     // A new websocket connection is established
     this.connections.add(conn);
@@ -28,6 +31,21 @@ export default class GameServer implements Party.Server {
   onClose(conn: Party.Connection) {
     // Remove connection when closed
     this.connections.delete(conn);
+
+    // Clean up any rematch requests from this player
+    for (const [gameId, rematchSet] of this.rematchRequests.entries()) {
+      if (rematchSet.has(conn.id)) {
+        rematchSet.delete(conn.id);
+
+        // If no more rematch requests for this game, remove the entry
+        if (rematchSet.size === 0) {
+          this.rematchRequests.delete(gameId);
+        }
+
+        // Broadcast updated game state
+        this.broadcastGameUpdate(gameId);
+      }
+    }
   }
 
   onMessage(message: string, sender: Party.Connection) {
@@ -77,6 +95,12 @@ export default class GameServer implements Party.Server {
           break;
         case "reveal-winner":
           this.handleRevealWinner(msg.gameId);
+          break;
+        case "request-rematch":
+          this.handleRematchRequest(msg.gameId, sender, msg.senderId);
+          break;
+        case "accept-rematch":
+          this.handleAcceptRematch(msg.gameId, sender, msg.senderId);
           break;
         default:
           console.warn("Unknown message type:", msg.type);
@@ -463,6 +487,127 @@ export default class GameServer implements Party.Server {
     this.broadcastWalletUpdate(player2);
   }
 
+  private handleRematchRequest(
+    gameId: string,
+    sender: Party.Connection,
+    senderId?: string
+  ) {
+    const game = this.games.get(gameId);
+    if (!game) return;
+
+    const playerId = senderId ?? sender.id;
+
+    // Check if the player is part of this game
+    if (!game.players.includes(playerId)) return;
+
+    // Initialize rematch requests for this game if not exists
+    if (!this.rematchRequests.has(gameId)) {
+      this.rematchRequests.set(gameId, new Set());
+    }
+
+    // Add this player's rematch request
+    this.rematchRequests.get(gameId)!.add(playerId);
+
+    // Notify all players in the game about the rematch request
+    this.broadcastGameUpdate(gameId);
+
+    // Check if both players have requested rematch
+    const rematchSet = this.rematchRequests.get(gameId)!;
+    if (rematchSet.size === 2) {
+      // Both players agreed to rematch, create new game
+      this.createRematchGame(game);
+    }
+  }
+
+  private handleAcceptRematch(
+    gameId: string,
+    sender: Party.Connection,
+    senderId?: string
+  ) {
+    const game = this.games.get(gameId);
+    if (!game) return;
+
+    const playerId = senderId ?? sender.id;
+
+    // Check if the player is part of this game
+    if (!game.players.includes(playerId)) return;
+
+    // Initialize rematch requests for this game if not exists
+    if (!this.rematchRequests.has(gameId)) {
+      this.rematchRequests.set(gameId, new Set());
+    }
+
+    // Add this player's rematch request
+    this.rematchRequests.get(gameId)!.add(playerId);
+
+    // Notify all players in the game about the rematch request
+    this.broadcastGameUpdate(gameId);
+
+    // Check if both players have requested rematch
+    const rematchSet = this.rematchRequests.get(gameId)!;
+    if (rematchSet.size === 2) {
+      // Both players agreed to rematch, create new game
+      this.createRematchGame(game);
+    }
+  }
+
+  private createRematchGame(originalGame: GameState) {
+    // Check if both players have sufficient balance for rematch
+    const player1Balance =
+      this.walletBalances.get(originalGame.players[0]) || 1000;
+    const player2Balance =
+      this.walletBalances.get(originalGame.players[1]) || 1000;
+
+    if (player1Balance < 25 || player2Balance < 25) {
+      // One or both players don't have sufficient balance
+      this.room.broadcast(
+        JSON.stringify({
+          type: "rematch-failed",
+          originalGameId: originalGame.id,
+          reason: "insufficient_balance",
+          player1Balance,
+          player2Balance,
+        })
+      );
+
+      // Clear the rematch requests
+      this.rematchRequests.delete(originalGame.id);
+      return;
+    }
+
+    // Create a new game with the same players
+    const newGameId = this.generateGameId();
+    const newCards = this.generateCards();
+
+    const newGame: GameState = {
+      id: newGameId,
+      status: "in-progress", // Start immediately since both players are ready
+      players: [...originalGame.players], // Copy the players
+      cards: newCards,
+      balances: { ...originalGame.balances }, // Copy the balances
+      createdAt: new Date(),
+    };
+
+    // Add the new game to the games map
+    this.games.set(newGameId, newGame);
+
+    // Clear the rematch requests for the original game
+    this.rematchRequests.delete(originalGame.id);
+
+    // Broadcast the new game to all players
+    this.room.broadcast(
+      JSON.stringify({
+        type: "rematch-game-created",
+        originalGameId: originalGame.id,
+        newGameId: newGameId,
+        gameState: newGame,
+      })
+    );
+
+    // Also broadcast updated game lists
+    this.broadcastGameList();
+  }
+
   private broadcastGameList() {
     const allGames = this.getGames();
     const activeGames = this.getActiveGames();
@@ -493,11 +638,21 @@ export default class GameServer implements Party.Server {
   private broadcastGameUpdate(gameId: string) {
     const game = this.games.get(gameId);
     if (game) {
+      // Check if there are rematch requests for this game
+      const rematchRequests = this.rematchRequests.get(gameId);
+      const rematchData = rematchRequests
+        ? {
+            rematchRequests: Array.from(rematchRequests),
+            canRematch: rematchRequests.size === 2,
+          }
+        : null;
+
       this.room.broadcast(
         JSON.stringify({
           type: "game-updated",
           gameId,
           gameState: game,
+          rematchData,
         })
       );
 

@@ -21,6 +21,8 @@ interface GameState {
   cards: string[][];
   balances: Record<string, number>;
   winner?: string;
+  rematchRequests?: string[];
+  canRematch?: boolean;
 }
 
 export default function GamePage({ params }: { params: { gameId: string } }) {
@@ -36,7 +38,7 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
   );
 
   const socket = usePartySocket({
-    host: "localhost:1999",
+    host: "c61a0ed7673a.ngrok-free.app",
     room: "my-new-room",
   });
 
@@ -54,6 +56,33 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
       ) {
         const gs = data.gameState;
         setGameState(gs);
+      }
+
+      // Handle rematch game creation
+      if (
+        data.type === "rematch-game-created" &&
+        data.originalGameId === params.gameId
+      ) {
+        console.log("Rematch game created, redirecting to:", data.newGameId);
+        router.push(`/game/${data.newGameId}`);
+        return;
+      }
+
+      // Handle rematch failure
+      if (
+        data.type === "rematch-failed" &&
+        data.originalGameId === params.gameId
+      ) {
+        console.log("Rematch failed:", data.reason);
+        if (data.reason === "insufficient_balance") {
+          setErrorMessage(
+            `Rematch failed: One or both players don't have sufficient balance (need $25 each). Player 1: $${data.player1Balance}, Player 2: $${data.player2Balance}`
+          );
+        } else {
+          setErrorMessage("Rematch failed for unknown reason");
+        }
+        setShowError(true);
+        return;
       }
 
       // Handle error messages from server

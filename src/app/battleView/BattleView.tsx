@@ -17,6 +17,8 @@ type GameState = {
   cards: string[][]; // ["pikachu#5", ...]
   balances: Record<string, number>;
   winner?: string;
+  rematchRequests?: string[];
+  canRematch?: boolean;
 };
 
 export function BattleView({
@@ -28,7 +30,7 @@ export function BattleView({
 }) {
   const { address: myAddress } = useAccount();
   const socket = usePartySocket({
-    host: "localhost:1999",
+    host: "c61a0ed7673a.ngrok-free.app",
     room: "my-new-room",
   });
 
@@ -36,6 +38,11 @@ export function BattleView({
   const [p1Bal, setP1Bal] = useState(25);
   const [p2Bal, setP2Bal] = useState(25);
   const [animating, setAnimating] = useState(false);
+
+  // Rematch state
+  const [rematchRequests, setRematchRequests] = useState<string[]>([]);
+  const [hasRequestedRematch, setHasRequestedRematch] = useState(false);
+  const [canRematch, setCanRematch] = useState(false);
 
   const [p1 = [], p2 = []] = game.cards ?? [];
   const betPerRound = 5; // 25 / 5 rounds
@@ -72,6 +79,62 @@ export function BattleView({
 
   const p1Vals = useMemo(() => p1.map((c) => parse(c).val), [p1]);
   const p2Vals = useMemo(() => p2.map((c) => parse(c).val), [p2]);
+
+  // Handle rematch requests
+  const handleRematchRequest = () => {
+    if (!socket || hasRequestedRematch) return;
+
+    socket.send(
+      JSON.stringify({
+        type: "request-rematch",
+        gameId: game.id,
+        senderId: myAddress,
+      })
+    );
+    setHasRequestedRematch(true);
+  };
+
+  // Listen for rematch-related messages
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === "game-updated" && data.gameId === game.id) {
+        if (data.rematchData) {
+          setRematchRequests(data.rematchData.rematchRequests || []);
+          setCanRematch(data.rematchData.canRematch || false);
+        }
+      }
+
+      if (
+        data.type === "rematch-game-created" &&
+        data.originalGameId === game.id
+      ) {
+        // Redirect to the new rematch game
+        window.location.href = `/game/${data.newGameId}`;
+      }
+
+      if (data.type === "rematch-failed" && data.originalGameId === game.id) {
+        // Handle rematch failure
+        if (data.reason === "insufficient_balance") {
+          alert(
+            `Rematch failed: One or both players don't have sufficient balance (need $25 each). Player 1: $${data.player1Balance}, Player 2: $${data.player2Balance}`
+          );
+        } else {
+          alert("Rematch failed for unknown reason");
+        }
+        // Reset rematch state
+        setHasRequestedRematch(false);
+        setRematchRequests([]);
+        setCanRematch(false);
+      }
+    };
+
+    socket.addEventListener("message", handleMessage);
+    return () => socket.removeEventListener("message", handleMessage);
+  }, [socket, game.id]);
 
   // Run 5 betting rounds when status is in-progress
   useEffect(() => {
@@ -222,6 +285,49 @@ export function BattleView({
                   </div>
                 </>
               )}
+            </div>
+
+            {/* Rematch Section */}
+            <div className="mt-6 text-center">
+              <div className="bg-gray-800 rounded-lg p-6 max-w-md mx-auto">
+                <h3 className="text-xl font-semibold text-white mb-4">
+                  Play Again?
+                </h3>
+
+                {!hasRequestedRematch ? (
+                  <button
+                    onClick={handleRematchRequest}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Request Rematch
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="text-green-400 font-medium">
+                      ✓ Rematch Requested
+                    </div>
+                    <div className="text-gray-400 text-sm">
+                      Waiting for opponent...
+                    </div>
+                    <div className="text-yellow-400 text-sm">
+                      {rematchRequests.length === 1
+                        ? "1/2 players ready"
+                        : "2/2 players ready"}
+                    </div>
+                  </div>
+                )}
+
+                {canRematch && (
+                  <div className="mt-4 p-3 bg-green-600/20 border border-green-500/40 rounded-lg">
+                    <div className="text-green-400 font-medium">
+                      🎮 Rematch Starting Soon!
+                    </div>
+                    <div className="text-green-300 text-sm">
+                      Both players agreed to rematch
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

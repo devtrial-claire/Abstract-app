@@ -48,15 +48,19 @@ function GameLobby({
           onClick={onJoinRandomBattle}
           disabled={
             !isConnected ||
-            activeGames.filter((g) => g.status === "waiting-for-players").length === 0
+            activeGames.filter((g) => g.status === "waiting-for-players")
+              .length === 0
           }
           className="border border-gray-300 bg-transparent px-4 py-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Join Random Battle
-          {activeGames.filter((g) => g.status === "waiting-for-players").length >
-            0 && (
+          {activeGames.filter((g) => g.status === "waiting-for-players")
+            .length > 0 && (
             <span className="ml-2 text-xs bg-green-600 text-white px-2 py-1 rounded-full">
-              {activeGames.filter((g) => g.status === "waiting-for-players").length}{" "}
+              {
+                activeGames.filter((g) => g.status === "waiting-for-players")
+                  .length
+              }{" "}
               available
             </span>
           )}
@@ -123,7 +127,8 @@ function GameLobby({
                   </span>
                   {game.winner && (
                     <span className="ml-2 text-sm text-green-400">
-                      Winner: {game.winner.slice(0, 6)}...{game.winner.slice(-4)}
+                      Winner: {game.winner.slice(0, 6)}...
+                      {game.winner.slice(-4)}
                     </span>
                   )}
                 </div>
@@ -185,7 +190,7 @@ export default function LobbyPage() {
   // Disconnect confirmation state
 
   const socket = usePartySocket({
-    host: "localhost:1999",
+    host: "c61a0ed7673a.ngrok-free.app",
     room: "my-new-room",
   });
 
@@ -250,7 +255,10 @@ export default function LobbyPage() {
             // Also set playerCurrentGameId if not already set
             if (!playerCurrentGameId) {
               setPlayerCurrentGameId(data.gameId);
-              console.log("Set playerCurrentGameId from game-joined:", data.gameId);
+              console.log(
+                "Set playerCurrentGameId from game-joined:",
+                data.gameId
+              );
             }
             break;
           case "game-state":

@@ -4,7 +4,12 @@
   "main": "src/server.ts",
   "serve": {
     "path": "public",
-    "build": "src/client.ts"
+    "build": "src/client.ts",
+    "cors": {
+      "origins": ["*"],
+      "methods": ["GET", "POST", "OPTIONS"],
+      "credentials": true
+    }
   },
   "vars": {
     "DEBUG": "true"
