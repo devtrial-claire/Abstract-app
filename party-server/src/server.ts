@@ -321,8 +321,8 @@ export default class GameServer implements Party.Server {
     // Generate random cards for both players
     const allCards = [
       { name: "pikachu", values: [1, 2, 5] },
-      { name: "chemander", values: [10, 17] },
-      { name: "foo", values: [11] },
+      { name: "chemander", values: [3, 4] },
+      { name: "foo", values: [6] },
     ];
 
     const player1Cards = [];

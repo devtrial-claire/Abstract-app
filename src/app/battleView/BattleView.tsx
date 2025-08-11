@@ -138,13 +138,23 @@ export function BattleView({
             <h3 className="text-lg font-semibold mb-2">
               {isPlayer1 ? "YOU" : isPlayer2 ? "OPPONENT" : "Player 1"}
             </h3>
-            <p className="text-2xl">${p1Bal.toFixed(1)}</p>
+            <p className="text-2xl">
+              Total:{" "}
+              {p1Vals
+                .slice(0, roundActive + 1)
+                .reduce((sum, val) => sum + val, 0)}
+            </p>
           </div>
           <div className="bg-gray-700 rounded-lg p-4">
             <h3 className="text-lg font-semibold mb-2">
               {isPlayer2 ? "YOU" : isPlayer1 ? "OPPONENT" : "Player 2"}
             </h3>
-            <p className="text-2xl">${p2Bal.toFixed(1)}</p>
+            <p className="text-2xl">
+              Total:{" "}
+              {p2Vals
+                .slice(0, roundActive + 1)
+                .reduce((sum, val) => sum + val, 0)}
+            </p>
           </div>
         </div>
 
@@ -257,7 +267,9 @@ export function BattleView({
                 <div className="text-lg font-semibold text-white">
                   {p1[roundActive] ? p1[roundActive] : "—"}
                 </div>
-                <div className="text-yellow-400 font-bold">${betPerRound}</div>
+                <div className="text-yellow-400 font-bold">
+                  Value: {p1[roundActive] ? parse(p1[roundActive]).val : "?"}
+                </div>
               </div>
             </div>
           </div>
@@ -301,22 +313,10 @@ export function BattleView({
                 <div className="text-lg font-semibold text-white">
                   {p2[roundActive] ? p2[roundActive] : "—"}
                 </div>
-                <div className="text-yellow-400 font-bold">${betPerRound}</div>
+                <div className="text-yellow-400 font-bold">
+                  Value: {p2[roundActive] ? parse(p2[roundActive]).val : "?"}
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Pot */}
-        <div className="text-center mb-8">
-          <div
-            className={`inline-block px-8 py-4 rounded-2xl bg-yellow-400/20 border-2 border-yellow-400/40 ${
-              animating ? "animate-pulse" : ""
-            }`}
-          >
-            <div className="text-2xl font-bold text-yellow-300">💰</div>
-            <div className="text-xl font-semibold text-yellow-200">
-              Pot: ${betPerRound}
             </div>
           </div>
         </div>
