@@ -56,6 +56,22 @@ export default class GameServer implements Party.Server {
             })
           );
           break;
+        case "get-active-games":
+          sender.send(
+            JSON.stringify({
+              type: "active-games-updated",
+              games: this.getActiveGames(),
+            })
+          );
+          break;
+        case "get-finished-games":
+          sender.send(
+            JSON.stringify({
+              type: "finished-games-updated",
+              games: this.getFinishedGames(),
+            })
+          );
+          break;
         case "get-wallet":
           this.handleGetWalletBalance(sender, msg.senderId);
           break;
@@ -152,6 +168,7 @@ export default class GameServer implements Party.Server {
       })
     );
 
+    // Broadcast updated game lists to all clients
     this.broadcastGameList();
   }
 
@@ -165,6 +182,20 @@ export default class GameServer implements Party.Server {
       return sender.send(
         JSON.stringify({ type: "error", message: "Game not found" })
       );
+
+    // Check if game is already finished
+    if (
+      game.status === "1st_player_won" ||
+      game.status === "2nd_player_won" ||
+      game.status === "draw"
+    ) {
+      return sender.send(
+        JSON.stringify({
+          type: "error",
+          message: "Cannot join finished game. Game status: " + game.status,
+        })
+      );
+    }
 
     const pid = senderId ?? sender.id;
 
@@ -255,10 +286,11 @@ export default class GameServer implements Party.Server {
       game.status = "in-progress";
       game.cards = this.generateCards();
       this.broadcastGameUpdate(gameId);
-      this.broadcastGameList();
       return;
     }
-    this.broadcastGameUpdate(gameId);
+
+    // Broadcast updated game lists to all clients
+    this.broadcastGameList();
   }
 
   private handleGetGameState(gameId: string, sender: Party.Connection) {
@@ -388,11 +420,28 @@ export default class GameServer implements Party.Server {
   }
 
   private broadcastGameList() {
-    const games = this.getGames();
+    const allGames = this.getGames();
+    const activeGames = this.getActiveGames();
+    const finishedGames = this.getFinishedGames();
+
     this.room.broadcast(
       JSON.stringify({
         type: "game-list-updated",
-        games: games,
+        games: allGames,
+      })
+    );
+
+    this.room.broadcast(
+      JSON.stringify({
+        type: "active-games-updated",
+        games: activeGames,
+      })
+    );
+
+    this.room.broadcast(
+      JSON.stringify({
+        type: "finished-games-updated",
+        games: finishedGames,
       })
     );
   }
@@ -407,16 +456,56 @@ export default class GameServer implements Party.Server {
           gameState: game,
         })
       );
+
+      // Also broadcast updated game lists
+      this.broadcastGameList();
     }
   }
 
   private getGames() {
+    // Return all games (both active and finished)
     return Array.from(this.games.values()).map((g) => ({
       id: g.id,
       status: g.status,
       player1: g.players[0] || null,
       createdAt: g.createdAt,
     }));
+  }
+
+  // Add new method to get only active games
+  private getActiveGames() {
+    return Array.from(this.games.values())
+      .filter(
+        (game) =>
+          game.status !== "1st_player_won" &&
+          game.status !== "2nd_player_won" &&
+          game.status !== "draw"
+      )
+      .map((g) => ({
+        id: g.id,
+        status: g.status,
+        player1: g.players[0] || null,
+        createdAt: g.createdAt,
+      }));
+  }
+
+  // Add new method to get only finished games
+  private getFinishedGames() {
+    return Array.from(this.games.values())
+      .filter(
+        (game) =>
+          game.status === "1st_player_won" ||
+          game.status === "2nd_player_won" ||
+          game.status === "draw"
+      )
+      .map((g) => ({
+        id: g.id,
+        status: g.status,
+        player1: g.players[0] || null,
+        createdAt: g.createdAt,
+        winner: g.winner,
+        players: g.players,
+      }));
   }
 
   // Add method to get wallet balance
