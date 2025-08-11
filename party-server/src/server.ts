@@ -362,17 +362,18 @@ export default class GameServer implements Party.Server {
       game.status = "1st_player_won";
       game.winner = game.players[0];
       game.loser = game.players[1];
+      // Handle wallet transfers for winner
+      this.handleGameResult(game.winner, game.loser);
     } else if (player2Total > player1Total) {
       game.status = "2nd_player_won";
       game.winner = game.players[1];
       game.loser = game.players[0];
+      // Handle wallet transfers for winner
+      this.handleGameResult(game.winner, game.loser);
     } else {
       game.status = "draw";
-    }
-
-    // Handle wallet transfers for winner
-    if (game.winner && game.loser) {
-      this.handleGameResult(game.winner, game.loser);
+      // Handle draw - both players get their $25 back
+      this.handleDrawResult(game.players[0], game.players[1]);
     }
   }
 
@@ -417,6 +418,49 @@ export default class GameServer implements Party.Server {
     // Broadcast wallet updates to both players
     this.broadcastWalletUpdate(winner);
     this.broadcastWalletUpdate(loser);
+  }
+
+  private handleDrawResult(player1: string, player2: string) {
+    // Both players get their $25 back since it's a draw
+    const player1Balance = this.walletBalances.get(player1) || 1000;
+    const player2Balance = this.walletBalances.get(player2) || 1000;
+
+    this.walletBalances.set(player1, player1Balance + 25);
+    this.walletBalances.set(player2, player2Balance + 25);
+
+    // Add transaction records for both players
+    const player1Transaction = {
+      id: Date.now().toString(),
+      type: "game_draw",
+      amount: 25,
+      gameId: "game-result",
+      timestamp: new Date(),
+      description: "Draw Battle - $25 refunded",
+    };
+
+    const player2Transaction = {
+      id: Date.now().toString(),
+      type: "game_draw",
+      amount: 25,
+      gameId: "game-result",
+      timestamp: new Date(),
+      description: "Draw Battle - $25 refunded",
+    };
+
+    // Add to transaction history
+    if (!this.transactionHistory.has(player1)) {
+      this.transactionHistory.set(player1, []);
+    }
+    if (!this.transactionHistory.has(player2)) {
+      this.transactionHistory.set(player2, []);
+    }
+
+    this.transactionHistory.get(player1)!.unshift(player1Transaction);
+    this.transactionHistory.get(player2)!.unshift(player2Transaction);
+
+    // Broadcast wallet updates to both players
+    this.broadcastWalletUpdate(player1);
+    this.broadcastWalletUpdate(player2);
   }
 
   private broadcastGameList() {
