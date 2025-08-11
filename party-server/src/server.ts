@@ -104,6 +104,7 @@ export default class GameServer implements Party.Server {
       players: [pid],
       cards: [],
       balances: { [pid]: 25 },
+      createdAt: new Date(),
     };
 
     this.games.set(gameId, gameState);
@@ -293,6 +294,7 @@ export default class GameServer implements Party.Server {
       id: g.id,
       status: g.status,
       player1: g.players[0] || null,
+      createdAt: g.createdAt,
     }));
   }
 }
@@ -310,6 +312,7 @@ interface GameState {
   cards: PokemonCard[][];
   balances: Record<string, number>;
   winner?: string;
+  createdAt: Date;
 }
 
 type PokemonCard = string;

@@ -12,6 +12,7 @@ interface Game {
   id: string;
   status: string;
   player1?: string;
+  createdAt?: Date;
 }
 
 interface GameLobbyProps {
@@ -20,6 +21,7 @@ interface GameLobbyProps {
   onJoinGame: (gameId: string) => void;
   onJoinRandomBattle: () => void;
   isConnected: boolean;
+  formatRelativeTime: (timestamp: Date | string) => string;
 }
 
 function GameLobby({
@@ -28,6 +30,7 @@ function GameLobby({
   onJoinGame,
   onJoinRandomBattle,
   isConnected,
+  formatRelativeTime,
 }: GameLobbyProps) {
   return (
     <div className="space-y-4">
@@ -77,12 +80,19 @@ function GameLobby({
                     ({game.status})
                   </span>
                 </div>
-                <button
-                  onClick={() => onJoinGame(game.id)}
-                  className="bg-green-600 text-white px-2 py-1 rounded text-sm hover:bg-green-700"
-                >
-                  Join
-                </button>
+                <div className="flex items-center gap-3">
+                  {game.createdAt && (
+                    <span className="text-xs text-gray-400">
+                      {formatRelativeTime(game.createdAt)}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => onJoinGame(game.id)}
+                    className="bg-green-600 text-white px-2 py-1 rounded text-sm hover:bg-green-700"
+                  >
+                    Join
+                  </button>
+                </div>
               </div>
             ))
           )}
@@ -94,6 +104,20 @@ function GameLobby({
 
 export default function LobbyPage() {
   const { address, status } = useAccount();
+
+  // Helper function to format relative time
+  const formatRelativeTime = (timestamp: Date | string) => {
+    const now = new Date();
+    const gameTime = new Date(timestamp);
+    const diffInMinutes = Math.floor(
+      (now.getTime() - gameTime.getTime()) / (1000 * 60)
+    );
+
+    if (diffInMinutes < 1) return "just now";
+    if (diffInMinutes < 60) return `${diffInMinutes} min ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
+    return `${Math.floor(diffInMinutes / 1440)}d ago`;
+  };
 
   const [games, setGames] = useState<Game[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -477,6 +501,7 @@ export default function LobbyPage() {
               onJoinGame={handleJoinGame}
               onJoinRandomBattle={handleJoinRandomBattle}
               isConnected={isConnected}
+              formatRelativeTime={formatRelativeTime}
             />
           </div>
 
