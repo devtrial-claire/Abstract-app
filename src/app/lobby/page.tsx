@@ -481,7 +481,15 @@ export default function LobbyPage() {
       )}
 
       <header className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold">Pokémon Betting Lobby</h1>
+        <div className="flex items-center gap-3">
+          {/* GACHA Logo */}
+          <div className="flex items-center">
+            <h1 className="text-3xl font-bold text-transparent bg-gradient-to-r from-gray-300 via-gray-100 to-gray-300 bg-clip-text drop-shadow-lg">
+              GACHA
+            </h1>
+            <div className="ml-2 text-gray-300 text-2xl animate-pulse">⭐</div>
+          </div>
+        </div>
         <div className="flex items-center gap-4">
           {/* <div className="text-sm">
             Connected: {address?.slice(0, 6)}...{address?.slice(-4)}

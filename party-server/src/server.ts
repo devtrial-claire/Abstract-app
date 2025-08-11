@@ -56,6 +56,9 @@ export default class GameServer implements Party.Server {
             })
           );
           break;
+        case "get-wallet":
+          this.handleGetWalletBalance(sender, msg.senderId);
+          break;
         case "reveal-winner":
           this.handleRevealWinner(msg.gameId);
           break;
@@ -75,6 +78,18 @@ export default class GameServer implements Party.Server {
 
   private handleCreateGame(sender: Party.Connection, senderId?: string) {
     const pid = senderId ?? sender.id;
+
+    // Check if player has enough balance
+    const currentBalance = this.walletBalances.get(pid) || 1000;
+    if (currentBalance < 25) {
+      sender.send(
+        JSON.stringify({
+          type: "error",
+          message: "Insufficient balance. You need $25 to create a game.",
+        })
+      );
+      return;
+    }
 
     // Check if this wallet address already has an active game
     for (const game of this.games.values()) {
@@ -107,10 +122,36 @@ export default class GameServer implements Party.Server {
       createdAt: new Date(),
     };
 
+    // Deduct $25 from wallet
+    this.walletBalances.set(pid, currentBalance - 25);
+
+    // Add transaction record
+    const transaction = {
+      id: Date.now().toString(),
+      type: "game_played",
+      amount: -25,
+      gameId: gameId,
+      timestamp: new Date(),
+      description: "Created New Battle",
+    };
+
+    if (!this.transactionHistory.has(pid)) {
+      this.transactionHistory.set(pid, []);
+    }
+    this.transactionHistory.get(pid)!.unshift(transaction);
+
     this.games.set(gameId, gameState);
+
+    // Send success message with updated balance
     sender.send(
-      JSON.stringify({ type: "game-created", gameId, status: gameState.status })
+      JSON.stringify({
+        type: "game-created",
+        gameId,
+        status: gameState.status,
+        newBalance: this.walletBalances.get(pid),
+      })
     );
+
     this.broadcastGameList();
   }
 
@@ -127,9 +168,20 @@ export default class GameServer implements Party.Server {
 
     const pid = senderId ?? sender.id;
 
+    // Check if player has enough balance
+    const currentBalance = this.walletBalances.get(pid) || 1000;
+    if (currentBalance < 25) {
+      sender.send(
+        JSON.stringify({
+          type: "error",
+          message: "Insufficient balance. You need $25 to join a game.",
+        })
+      );
+      return;
+    }
+
     // Check if this wallet address is already in this game
     if (game.players.includes(pid)) {
-      // Instead of error, send a redirect message to their existing game
       sender.send(
         JSON.stringify({
           type: "game-joined",
@@ -168,15 +220,34 @@ export default class GameServer implements Party.Server {
         JSON.stringify({ type: "error", message: "Game is full" })
       );
 
+    // Deduct $25 from wallet
+    this.walletBalances.set(pid, currentBalance - 25);
+
+    // Add transaction record
+    const transaction = {
+      id: Date.now().toString(),
+      type: "game_played",
+      amount: -25,
+      gameId: gameId,
+      timestamp: new Date(),
+      description: "Joined Battle",
+    };
+
+    if (!this.transactionHistory.has(pid)) {
+      this.transactionHistory.set(pid, []);
+    }
+    this.transactionHistory.get(pid)!.unshift(transaction);
+
     game.players.push(pid);
     game.balances[pid] = 25;
 
-    // Send success message to the player who joined
+    // Send success message with updated balance
     sender.send(
       JSON.stringify({
         type: "game-joined",
         gameId: gameId,
         status: game.status,
+        newBalance: this.walletBalances.get(pid),
       })
     );
 
@@ -258,12 +329,62 @@ export default class GameServer implements Party.Server {
     if (player1Total > player2Total) {
       game.status = "1st_player_won";
       game.winner = game.players[0];
+      game.loser = game.players[1];
     } else if (player2Total > player1Total) {
       game.status = "2nd_player_won";
       game.winner = game.players[1];
+      game.loser = game.players[0];
     } else {
       game.status = "draw";
     }
+
+    // Handle wallet transfers for winner
+    if (game.winner && game.loser) {
+      this.handleGameResult(game.winner, game.loser);
+    }
+  }
+
+  private handleGameResult(winner: string, loser: string) {
+    // Winner gets the opponent's $25 (total gain: $25)
+    const winnerBalance = this.walletBalances.get(winner) || 1000;
+    this.walletBalances.set(winner, winnerBalance + 50);
+
+    // Loser keeps their $25 (they already paid it when joining)
+    // No additional deduction needed
+
+    // Add transaction records
+    const winnerTransaction = {
+      id: Date.now().toString(),
+      type: "game_won",
+      amount: 25 + 25,
+      gameId: "game-result",
+      timestamp: new Date(),
+      description: "Won Battle - Earned opponent's $25",
+    };
+
+    const loserTransaction = {
+      id: Date.now().toString(),
+      type: "game_lost",
+      amount: 0, // No additional loss, they already paid $25
+      gameId: "game-result",
+      timestamp: new Date(),
+      description: "Lost Battle - $25 already deducted",
+    };
+
+    // Add to transaction history
+    if (!this.transactionHistory.has(winner)) {
+      this.transactionHistory.set(winner, []);
+    }
+    if (!this.transactionHistory.has(loser)) {
+      this.transactionHistory.set(loser, []);
+    }
+
+    this.transactionHistory.get(winner)!.unshift(winnerTransaction);
+    this.transactionHistory.get(loser)!.unshift(loserTransaction);
+
+    // Broadcast wallet updates to both players
+    this.broadcastWalletUpdate(winner);
+    this.broadcastWalletUpdate(loser);
   }
 
   private broadcastGameList() {
@@ -297,6 +418,48 @@ export default class GameServer implements Party.Server {
       createdAt: g.createdAt,
     }));
   }
+
+  // Add method to get wallet balance
+  private handleGetWalletBalance(sender: Party.Connection, senderId?: string) {
+    const pid = senderId ?? sender.id;
+    const balance = this.walletBalances.get(pid) || 1000;
+    const transactions = this.transactionHistory.get(pid) || [];
+
+    sender.send(
+      JSON.stringify({
+        type: "wallet-update",
+        balance: balance,
+        transactions: transactions,
+      })
+    );
+  }
+
+  // Add method to initialize wallet for new users
+  private initializeWallet(pid: string) {
+    if (!this.walletBalances.has(pid)) {
+      this.walletBalances.set(pid, 1000);
+      this.transactionHistory.set(pid, []);
+    }
+  }
+
+  private broadcastWalletUpdate(playerId: string) {
+    const balance = this.walletBalances.get(playerId) || 1000;
+    const transactions = this.transactionHistory.get(playerId) || [];
+
+    // Find the player's connection and send update
+    for (const conn of this.connections) {
+      if (conn.id === playerId || conn.id.includes(playerId)) {
+        conn.send(
+          JSON.stringify({
+            type: "wallet-update",
+            balance: balance,
+            transactions: transactions,
+          })
+        );
+        break;
+      }
+    }
+  }
 }
 
 // Type definitions
@@ -312,6 +475,7 @@ interface GameState {
   cards: PokemonCard[][];
   balances: Record<string, number>;
   winner?: string;
+  loser?: string; // Add this field
   createdAt: Date;
 }
 

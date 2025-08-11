@@ -139,9 +139,10 @@ export function WalletView() {
         const data = JSON.parse(event.data);
 
         if (data.type === "game-created" || data.type === "game-joined") {
-          // Deduct $25 when joining a game
-          const newBalance = walletBalance - 25;
-          setWalletBalance(newBalance);
+          // Update balance from server response
+          if (data.newBalance !== undefined) {
+            setWalletBalance(data.newBalance);
+          }
 
           // Add transaction record
           const newTransaction: Transaction = {
@@ -159,6 +160,17 @@ export function WalletView() {
           setTransactions((prev) => [newTransaction, ...prev]);
         }
 
+        if (data.type === "wallet-update") {
+          // Update wallet from server
+          setWalletBalance(data.balance);
+          setTransactions(
+            data.transactions.map((tx: any) => ({
+              ...tx,
+              timestamp: new Date(tx.timestamp),
+            }))
+          );
+        }
+
         if (data.type === "game-updated" && data.gameState?.status) {
           const gameStatus = data.gameState.status;
 
@@ -167,21 +179,79 @@ export function WalletView() {
             gameStatus === "2nd_player_won"
           ) {
             const isWinner = data.gameState.winner === address;
-            const amount = isWinner ? 50 : 0; // Winner gets $50, loser gets nothing
 
-            if (amount > 0) {
-              const newBalance = walletBalance + amount;
+            if (isWinner) {
+              // Winner gets $25 (opponent's money)
+              const newBalance = walletBalance + 25;
               setWalletBalance(newBalance);
 
               const newTransaction: Transaction = {
                 id: Date.now().toString(),
-                type: isWinner ? "game_won" : "game_lost",
-                amount: amount,
+                type: "game_won",
+                amount: 25,
                 gameId: data.gameState.id,
                 timestamp: new Date(),
-                description: isWinner
-                  ? "Won Pokemon Battle"
-                  : "Lost Pokemon Battle",
+                description: "Won Battle - Earned opponent's $25",
+              };
+
+              setTransactions((prev) => [newTransaction, ...prev]);
+            } else {
+              // Loser - no additional transaction needed (already paid $25)
+              const newTransaction: Transaction = {
+                id: Date.now().toString(),
+                type: "game_lost",
+                amount: 0,
+                gameId: data.gameState.id,
+                timestamp: new Date(),
+                description: "Lost Battle - $25 already deducted",
+              };
+
+              setTransactions((prev) => [newTransaction, ...prev]);
+            }
+          }
+        }
+
+        if (
+          data.type === "error" &&
+          data.message.includes("Insufficient balance")
+        ) {
+          // Show error message to user
+          alert("Insufficient balance! You need $25 to play.");
+        }
+
+        if (data.type === "game-updated" && data.gameState?.status) {
+          const gameStatus = data.gameState.status;
+
+          if (
+            gameStatus === "1st_player_won" ||
+            gameStatus === "2nd_player_won"
+          ) {
+            const isWinner = data.gameState.winner === address;
+
+            if (isWinner) {
+              // Winner gets $25 (opponent's money)
+              const newBalance = walletBalance + 25;
+              setWalletBalance(newBalance);
+
+              const newTransaction: Transaction = {
+                id: Date.now().toString(),
+                type: "game_won",
+                amount: 25,
+                gameId: data.gameState.id,
+                timestamp: new Date(),
+                description: "Won Battle - Earned opponent's $25",
+              };
+
+              setTransactions((prev) => [newTransaction, ...prev]);
+            } else {
+              // Loser - no additional transaction needed (already paid $25)
+              const newTransaction: Transaction = {
+                id: Date.now().toString(),
+                type: "game_lost",
+                amount: 0,
+                gameId: data.gameState.id,
+                timestamp: new Date(),
+                description: "Lost Battle - $25 already deducted",
               };
 
               setTransactions((prev) => [newTransaction, ...prev]);
@@ -196,6 +266,18 @@ export function WalletView() {
     socket.addEventListener("message", handleMessage);
     return () => socket.removeEventListener("message", handleMessage);
   }, [socket, address, walletBalance]);
+
+  // Request wallet update when connecting
+  useEffect(() => {
+    if (socket && address) {
+      socket.send(
+        JSON.stringify({
+          type: "get-wallet",
+          senderId: address,
+        })
+      );
+    }
+  }, [socket, address]);
 
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
