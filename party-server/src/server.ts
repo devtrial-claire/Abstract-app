@@ -7,10 +7,15 @@ export default class GameServer implements Party.Server {
   games = new Map<string, GameState>();
   connections = new Set<Party.Connection>();
 
+  // Store wallet balances and transaction history
+  walletBalances = new Map<string, number>();
+  transactionHistory = new Map<string, any[]>();
+
   onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
     // A new websocket connection is established
     this.connections.add(conn);
     conn.send(JSON.stringify({ type: "connected", id: conn.id }));
+
     // send current open games to just-connected client
     conn.send(
       JSON.stringify({

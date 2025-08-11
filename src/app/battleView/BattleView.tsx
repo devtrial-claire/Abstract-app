@@ -316,7 +316,7 @@ export function BattleView({
           >
             <div className="text-2xl font-bold text-yellow-300">💰</div>
             <div className="text-xl font-semibold text-yellow-200">
-              Pot: ${betPerRound * 2}
+              Pot: ${betPerRound}
             </div>
           </div>
         </div>
