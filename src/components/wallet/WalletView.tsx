@@ -306,7 +306,7 @@ export function WalletView() {
   const handleConfirmDisconnect = async () => {
     try {
       await logout();
-      window.location.href = "http://localhost:3000/";
+      window.location.href = "https://abstractapp.vercel.app/lobby";
     } catch (error) {
       console.error("Error disconnecting:", error);
     }

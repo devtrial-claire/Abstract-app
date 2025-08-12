@@ -9,7 +9,8 @@
     "cors": {
       "origins": [
         "https://gacha-game-server.elmobbb.partykit.dev",
-        "http://localhost:3000"
+        "http://localhost:3000",
+        "https://abstractapp.vercel.app/"
       ],
       "methods": ["GET", "POST", "OPTIONS"],
       "credentials": true

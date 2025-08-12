@@ -198,7 +198,8 @@ export default function LobbyPage() {
   // Check wallet connection and redirect if not connected
   useEffect(() => {
     if (status === "disconnected" || (!address && status !== "connecting")) {
-      window.location.href = "http://localhost:3000/";
+      // window.location.href = "http://localhost:3000/";
+      window.location.href = "https://abstractapp.vercel.app/";
     }
   }, [address, status]);
 
