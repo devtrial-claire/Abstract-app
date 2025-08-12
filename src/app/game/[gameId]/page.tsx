@@ -29,7 +29,7 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
   const router = useRouter();
   const { address: myId } = useAccount();
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [messages, setMessages] = useState<string[]>([]);
+
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showError, setShowError] = useState(false);
   const [showRejoinButton, setShowRejoinButton] = useState(false);
@@ -38,7 +38,7 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
   );
 
   const socket = usePartySocket({
-    host: "c577bc3f4edb.ngrok-free.app",
+    host: process.env.NEXT_PUBLIC_PARTYKIT_HOST || "localhost:1999",
     room: "my-new-room",
   });
 
@@ -48,7 +48,6 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
     const handleMessage = (event: MessageEvent) => {
       const data = JSON.parse(event.data);
       console.log("Game page received:", data);
-      setMessages((prev) => [...prev, `Received: ${JSON.stringify(data)}`]);
 
       if (
         (data.type === "game-state" || data.type === "game-updated") &&
@@ -95,7 +94,6 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
       // Handle error messages from server
       if (data.type === "error") {
         console.error("Server error:", data.message);
-        setMessages((prev) => [...prev, `Error: ${data.message}`]);
         setErrorMessage(data.message);
 
         // Check if this is the "active game" error and we have a current game ID
@@ -128,7 +126,7 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
     else socket.addEventListener("open", request, { once: true });
 
     return () => socket.removeEventListener("message", handleMessage);
-  }, [socket, params.gameId]);
+  }, [socket, params.gameId, myId, router]);
 
   const handleLeaveGame = (gameStatus: GameStatus) => {
     // Only allow leaving if the game is finished

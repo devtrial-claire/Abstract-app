@@ -1,40 +1,22 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { usePartySocket } from "partysocket/react";
+import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
 
-type GameStatus =
-  | "waiting-for-players"
-  | "in-progress"
-  | "1st_player_won"
-  | "2nd_player_won"
-  | "draw";
 
-interface GameState {
-  id: string;
-  status: GameStatus;
-  players: string[];
-  cards: string[][];
-  balances: Record<string, number>;
-  winner?: string;
-}
+
+
 
 interface GameRoomProps {
   gameId: string;
-  onLeaveGame: (status: GameStatus) => void;
 }
 
-export function GameRoom({ gameId, onLeaveGame }: GameRoomProps) {
+export function GameRoom({ gameId }: GameRoomProps) {
   const router = useRouter();
-  const { address: myId } = useAccount();
 
   console.log(
     "GameRoom component rendered with gameId:",
-    gameId,
-    "myId:",
-    myId
+    gameId
   );
 
   // Redirect immediately when GameRoom renders

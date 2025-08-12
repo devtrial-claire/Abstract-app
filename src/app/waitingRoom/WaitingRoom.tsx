@@ -7,7 +7,6 @@ import { useEffect, useState } from "react";
 
 interface WaitingRoomProps {
   gameId: string;
-  onCancel?: () => void;
 }
 
 interface GameState {
@@ -19,7 +18,7 @@ interface GameState {
   winner?: string;
 }
 
-export function WaitingRoom({ gameId, onCancel }: WaitingRoomProps) {
+export function WaitingRoom({ gameId }: WaitingRoomProps) {
   const router = useRouter();
   const { address: myId } = useAccount();
   const [gameState, setGameState] = useState<GameState | null>(null);

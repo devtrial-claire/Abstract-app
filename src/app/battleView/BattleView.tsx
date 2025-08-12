@@ -30,13 +30,11 @@ export function BattleView({
 }) {
   const { address: myAddress } = useAccount();
   const socket = usePartySocket({
-    host: "c577bc3f4edb.ngrok-free.app",
+    host: process.env.NEXT_PUBLIC_PARTYKIT_HOST || "localhost:1999",
     room: "my-new-room",
   });
 
   const [round, setRound] = useState(0); // 0..5
-  const [p1Bal, setP1Bal] = useState(25);
-  const [p2Bal, setP2Bal] = useState(25);
   const [animating, setAnimating] = useState(false);
 
   // Rematch state
@@ -45,7 +43,6 @@ export function BattleView({
   const [canRematch, setCanRematch] = useState(false);
 
   const [p1 = [], p2 = []] = game.cards ?? [];
-  const betPerRound = 5; // 25 / 5 rounds
 
   // Determine which player is the current user
   const isPlayer1 = myAddress && game.players[0] === myAddress;
@@ -142,18 +139,8 @@ export function BattleView({
 
     setAnimating(true);
     const t = setTimeout(() => {
-      const i = round;
-      const v1 = p1Vals[i] ?? 0;
-      const v2 = p2Vals[i] ?? 0;
-
       // Each round both "bet" $5. Higher card wins the $10 pot.
-      if (v1 > v2) {
-        setP1Bal((b) => b + betPerRound);
-        setP2Bal((b) => b - betPerRound);
-      } else if (v2 > v1) {
-        setP1Bal((b) => b - betPerRound);
-        setP2Bal((b) => b + betPerRound);
-      }
+      // Balance updates are now handled by the server
 
       setRound((r) => r + 1);
       setAnimating(false);
@@ -246,7 +233,7 @@ export function BattleView({
                   <div className="text-2xl font-semibold text-yellow-200">
                     DRAW!
                   </div>
-                  <div className="text-lg text-gray-300 mt-2">It's a tie!</div>
+                  <div className="text-lg text-gray-300 mt-2">It&apos;s a tie!</div>
                 </>
               ) : currentUserWon ? (
                 <>

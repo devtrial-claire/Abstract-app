@@ -65,7 +65,7 @@ export function WalletView() {
       if (storedTransactions) {
         try {
           const parsedTransactions = JSON.parse(storedTransactions).map(
-            (tx: any) => ({
+            (tx: Transaction) => ({
               ...tx,
               timestamp: new Date(tx.timestamp),
             })
@@ -114,7 +114,7 @@ export function WalletView() {
   }, [walletBalance, transactions, address]);
 
   const socket = usePartySocket({
-    host: "c577bc3f4edb.ngrok-free.app",
+    host: process.env.NEXT_PUBLIC_PARTYKIT_HOST || "localhost:1999",
     room: "my-new-room",
   });
 
@@ -164,7 +164,7 @@ export function WalletView() {
           // Update wallet from server
           setWalletBalance(data.balance);
           setTransactions(
-            data.transactions.map((tx: any) => ({
+            data.transactions.map((tx: Transaction) => ({
               ...tx,
               timestamp: new Date(tx.timestamp),
             }))

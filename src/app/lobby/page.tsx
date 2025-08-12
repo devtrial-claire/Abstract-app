@@ -13,6 +13,7 @@ interface Game {
   status: string;
   player1?: string;
   createdAt?: Date;
+  winner?: string;
 }
 
 interface GameLobbyProps {
@@ -173,7 +174,7 @@ export default function LobbyPage() {
   const [messages, setMessages] = useState<string[]>([]);
   const [myId, setMyId] = useState<string | null>(null);
   const [currentGameId, setCurrentGameId] = useState<string | null>(null);
-  const [gameState, setGameState] = useState<any>(null);
+
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showError, setShowError] = useState(false);
   const [showRejoinButton, setShowRejoinButton] = useState(false);
@@ -190,7 +191,7 @@ export default function LobbyPage() {
   // Disconnect confirmation state
 
   const socket = usePartySocket({
-    host: "c577bc3f4edb.ngrok-free.app",
+    host: process.env.NEXT_PUBLIC_PARTYKIT_HOST || "localhost:1999",
     room: "my-new-room",
   });
 
@@ -263,7 +264,6 @@ export default function LobbyPage() {
             break;
           case "game-state":
             const gs = data.gameState ?? data.game; // fallback if some payloads still use `game`
-            setGameState(gs);
 
             // If we receive a game state update and the current player is in the game,
             // make sure currentGameId is set
@@ -333,7 +333,7 @@ export default function LobbyPage() {
       socket.removeEventListener("close", handleClose);
       socket.removeEventListener("error", handleError);
     };
-  }, [socket, myId]);
+  }, [socket, myId, playerCurrentGameId]);
 
   // Debug logging for error state changes
   useEffect(() => {
@@ -374,17 +374,7 @@ export default function LobbyPage() {
     }
   };
 
-  const handleLeaveGame = (gameStatus?: string) => {
-    // Only allow leaving if the game is finished
-    if (
-      gameStatus &&
-      ["1st_player_won", "2nd_player_won", "draw"].includes(gameStatus)
-    ) {
-      setCurrentGameId(null);
-      setPlayerCurrentGameId(null); // Clear the tracked game when leaving
-    }
-    // If game is still active, don't allow leaving - stay in the game
-  };
+
 
   const handleRejoinGame = () => {
     console.log(
@@ -493,7 +483,7 @@ export default function LobbyPage() {
             </h3>
             <div className="mb-6">
               <p className="text-gray-300 mb-2">
-                You're about to join a battle with:
+                You&apos;re about to join a battle with:
               </p>
               <div className="bg-gray-700 rounded p-3 space-y-2">
                 <div className="flex justify-between items-center">
@@ -557,7 +547,7 @@ export default function LobbyPage() {
       </header>
 
       {currentGameId ? (
-        <GameRoom gameId={currentGameId} onLeaveGame={handleLeaveGame} />
+        <GameRoom gameId={currentGameId} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div>
