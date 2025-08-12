@@ -8,6 +8,7 @@ import { GameRoom } from "./GameRoom";
 import { ErrorPopup } from "@/components/ErrorScreen";
 import { WalletView } from "@/components/wallet/WalletView";
 
+
 interface Game {
   id: string;
   status: string;

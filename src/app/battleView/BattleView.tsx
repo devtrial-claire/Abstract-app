@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePartySocket } from "partysocket/react";
 import { useAccount } from "wagmi";
+import { GameOverPopup } from "@/components/GameOverPopup";
+import { RematchRejectedPopup } from "@/components/RematchRejectedPopup";
 
 type GameStatus =
   | "waiting-for-players"
@@ -163,6 +165,104 @@ export function BattleView({
   }, [round, game.status, game.id, socket]);
 
   const roundActive = round < 5 ? round : 4;
+
+  const [showGameOverPopup, setShowGameOverPopup] = useState(false);
+  const [showRematchRejectedPopup, setShowRematchRejectedPopup] =
+    useState(false);
+
+  const handleRequestRematch = () => {
+    if (!socket || hasRequestedRematch) return;
+
+    socket.send(
+      JSON.stringify({
+        type: "request-rematch",
+        gameId: game.id,
+        senderId: myAddress,
+      })
+    );
+    setHasRequestedRematch(true);
+    setShowGameOverPopup(false); // Close the popup
+  };
+
+  const handleRejectRematch = () => {
+    if (!socket) return;
+
+    socket.send(
+      JSON.stringify({
+        type: "reject-rematch",
+        gameId: game.id,
+        senderId: myAddress,
+      })
+    );
+    setShowGameOverPopup(false); // Close the popup
+  };
+
+  const handleJoinRandomBattle = () => {
+    // Navigate to lobby and trigger join random battle
+    window.location.href = "/lobby?action=joinRandom";
+  };
+
+  const handleGoToLobby = () => {
+    window.location.href = "/lobby";
+  };
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === "rematch-rejected" && data.gameId === game.id) {
+        // Check if current user was the one who requested rematch
+        if (data.requestingPlayer === myAddress) {
+          setShowRematchRejectedPopup(true);
+        }
+      }
+
+      if (data.type === "game-updated" && data.gameId === game.id) {
+        if (data.rematchData) {
+          setRematchRequests(data.rematchData.rematchRequests || []);
+          setCanRematch(data.rematchData.canRematch || false);
+        }
+      }
+
+      if (
+        data.type === "rematch-game-created" &&
+        data.originalGameId === game.id
+      ) {
+        // Redirect to the new rematch game
+        window.location.href = `/game/${data.newGameId}`;
+      }
+
+      if (data.type === "rematch-failed" && data.originalGameId === game.id) {
+        // Handle rematch failure
+        if (data.reason === "insufficient_balance") {
+          alert(
+            `Rematch failed: One or both players don't have sufficient balance (need $25 each). Player 1: $${data.player1Balance}, Player 2: $${data.player2Balance}`
+          );
+        } else {
+          alert("Rematch failed for unknown reason");
+        }
+        // Reset rematch state
+        setHasRequestedRematch(false);
+        setRematchRequests([]);
+        setCanRematch(false);
+      }
+    };
+
+    socket.addEventListener("message", handleMessage);
+    return () => socket.removeEventListener("message", handleMessage);
+  }, [socket, game.id, myAddress]);
+
+  useEffect(() => {
+    if (
+      game.status === "1st_player_won" ||
+      game.status === "2nd_player_won" ||
+      game.status === "draw"
+    ) {
+      setShowGameOverPopup(true);
+    }
+  }, [game.status]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
@@ -435,6 +535,21 @@ export function BattleView({
           </div>
         </div>
       </div>
+      <GameOverPopup
+        isOpen={showGameOverPopup}
+        onClose={() => setShowGameOverPopup(false)}
+        onRequestRematch={handleRequestRematch}
+        onRejectRematch={handleRejectRematch}
+        gameResult={currentUserWon ? "won" : currentUserLost ? "lost" : "draw"}
+        winnerAddress={game.winner}
+        myAddress={myAddress}
+      />
+
+      <RematchRejectedPopup
+        isOpen={showRematchRejectedPopup}
+        onJoinRandomBattle={handleJoinRandomBattle}
+        onGoToLobby={handleGoToLobby}
+      />
     </div>
   );
 }

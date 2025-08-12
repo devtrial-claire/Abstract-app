@@ -105,6 +105,9 @@ export default class GameServer implements Party.Server {
         case "cancel-game":
           this.handleCancelGame(msg.gameId, sender, msg.senderId);
           break;
+        case "reject-rematch":
+          this.handleRejectRematch(msg.gameId, sender, msg.senderId);
+          break;
         default:
           console.warn("Unknown message type:", msg.type);
       }
@@ -538,6 +541,43 @@ export default class GameServer implements Party.Server {
       // Both players agreed to rematch, create new game
       this.createRematchGame(game);
     }
+  }
+
+  private handleRejectRematch(
+    gameId: string,
+    sender: Party.gConnection,
+    senderId?: string
+  ) {
+    const game = this.games.get(gameId);
+    if (!game) return;
+
+    const playerId = senderId ?? sender.id;
+
+    // Check if the player is part of this game
+    if (!game.players.includes(playerId)) return;
+
+    // Find the other player who requested rematch
+    const rematchSet = this.rematchRequests.get(gameId);
+    if (!rematchSet || rematchSet.size === 0) return;
+
+    // Get the player who requested rematch (the other player)
+    const requestingPlayer = Array.from(rematchSet)[0];
+
+    // Clear the rematch request
+    this.rematchRequests.delete(gameId);
+
+    // Notify the requesting player that rematch was rejected
+    this.room.broadcast(
+      JSON.stringify({
+        type: "rematch-rejected",
+        gameId: gameId,
+        rejectedBy: playerId,
+        requestingPlayer: requestingPlayer,
+      })
+    );
+
+    // Broadcast updated game state
+    this.broadcastGameUpdate(gameId);
   }
 
   private handleAcceptRematch(
