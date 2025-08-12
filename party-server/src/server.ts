@@ -102,6 +102,9 @@ export default class GameServer implements Party.Server {
         case "accept-rematch":
           this.handleAcceptRematch(msg.gameId, sender, msg.senderId);
           break;
+        case "cancel-game":
+          this.handleCancelGame(msg.gameId, sender, msg.senderId);
+          break;
         default:
           console.warn("Unknown message type:", msg.type);
       }
@@ -118,6 +121,9 @@ export default class GameServer implements Party.Server {
 
   private handleCreateGame(sender: Party.Connection, senderId?: string) {
     const pid = senderId ?? sender.id;
+
+    // Initialize wallet if this is a new user
+    this.initializeWallet(pid);
 
     // Check if player has enough balance
     const currentBalance = this.walletBalances.get(pid) || 1000;
@@ -222,6 +228,9 @@ export default class GameServer implements Party.Server {
     }
 
     const pid = senderId ?? sender.id;
+
+    // Initialize wallet if this is a new user
+    this.initializeWallet(pid);
 
     // Check if player has enough balance
     const currentBalance = this.walletBalances.get(pid) || 1000;
@@ -524,31 +533,9 @@ export default class GameServer implements Party.Server {
     sender: Party.Connection,
     senderId?: string
   ) {
-    const game = this.games.get(gameId);
-    if (!game) return;
-
-    const playerId = senderId ?? sender.id;
-
-    // Check if the player is part of this game
-    if (!game.players.includes(playerId)) return;
-
-    // Initialize rematch requests for this game if not exists
-    if (!this.rematchRequests.has(gameId)) {
-      this.rematchRequests.set(gameId, new Set());
-    }
-
-    // Add this player's rematch request
-    this.rematchRequests.get(gameId)!.add(playerId);
-
-    // Notify all players in the game about the rematch request
-    this.broadcastGameUpdate(gameId);
-
-    // Check if both players have requested rematch
-    const rematchSet = this.rematchRequests.get(gameId)!;
-    if (rematchSet.size === 2) {
-      // Both players agreed to rematch, create new game
-      this.createRematchGame(game);
-    }
+    // For now, treat accept-rematch the same as request-rematch
+    // Both players need to request/accept for a rematch to happen
+    this.handleRematchRequest(gameId, sender, senderId);
   }
 
   private createRematchGame(originalGame: GameState) {
@@ -575,6 +562,43 @@ export default class GameServer implements Party.Server {
       return;
     }
 
+    // Deduct $25 from both players' wallets for the rematch
+    this.walletBalances.set(originalGame.players[0], player1Balance - 25);
+    this.walletBalances.set(originalGame.players[1], player2Balance - 25);
+
+    // Add transaction records for both players
+    const player1Transaction = {
+      id: Date.now().toString(),
+      type: "rematch_played",
+      amount: -25,
+      gameId: "rematch-game",
+      timestamp: new Date(),
+      description: "Rematch Battle - $25 deducted",
+    };
+
+    const player2Transaction = {
+      id: Date.now().toString(),
+      type: "rematch_played",
+      amount: -25,
+      gameId: "rematch-game",
+      timestamp: new Date(),
+      description: "Rematch Battle - $25 deducted",
+    };
+
+    // Add to transaction history
+    if (!this.transactionHistory.has(originalGame.players[0])) {
+      this.transactionHistory.set(originalGame.players[0], []);
+    }
+    if (!this.transactionHistory.has(originalGame.players[1])) {
+      this.transactionHistory.set(originalGame.players[1], []);
+    }
+
+    this.transactionHistory
+      .get(originalGame.players[0])!
+      .unshift(player1Transaction);
+    this.transactionHistory
+      .get(originalGame.players[1])!
+      .unshift(player2Transaction);
     // Create a new game with the same players
     const newGameId = this.generateGameId();
     const newCards = this.generateCards();
@@ -584,7 +608,10 @@ export default class GameServer implements Party.Server {
       status: "in-progress", // Start immediately since both players are ready
       players: [...originalGame.players], // Copy the players
       cards: newCards,
-      balances: { ...originalGame.balances }, // Copy the balances
+      balances: {
+        [originalGame.players[0]]: 25,
+        [originalGame.players[1]]: 25,
+      }, // Set new balances for the rematch game
       createdAt: new Date(),
     };
 
@@ -604,7 +631,99 @@ export default class GameServer implements Party.Server {
       })
     );
 
+    // Broadcast wallet updates to both players
+    this.broadcastWalletUpdate(originalGame.players[0]);
+    this.broadcastWalletUpdate(originalGame.players[1]);
+
     // Also broadcast updated game lists
+    this.broadcastGameList();
+  }
+
+  private handleCancelGame(
+    gameId: string,
+    sender: Party.Connection,
+    senderId?: string
+  ) {
+    const game = this.games.get(gameId);
+    if (!game) {
+      sender.send(
+        JSON.stringify({
+          type: "error",
+          message: "Game not found",
+        })
+      );
+      return;
+    }
+
+    const pid = senderId ?? sender.id;
+
+    // Only the game creator can cancel the game
+    if (game.players[0] !== pid) {
+      sender.send(
+        JSON.stringify({
+          type: "error",
+          message: "Only the game creator can cancel the game",
+        })
+      );
+      return;
+    }
+
+    // Only allow cancellation if the game is still waiting for players
+    if (game.status !== "waiting-for-players") {
+      sender.send(
+        JSON.stringify({
+          type: "error",
+          message: "Cannot cancel game that has already started",
+        })
+      );
+      return;
+    }
+
+    // Only allow cancellation if there's only one player
+    if (game.players.length > 1) {
+      sender.send(
+        JSON.stringify({
+          type: "error",
+          message: "Cannot cancel game after opponent has joined",
+        })
+      );
+      return;
+    }
+
+    // Refund the $25 to the game creator
+    const currentBalance = this.walletBalances.get(pid) || 0;
+    this.walletBalances.set(pid, currentBalance + 25);
+
+    // Add refund transaction record
+    const transaction = {
+      id: Date.now().toString(),
+      type: "game_cancelled",
+      amount: 25,
+      gameId: gameId,
+      timestamp: new Date(),
+      description: "Game Cancelled - Refund",
+    };
+
+    if (!this.transactionHistory.has(pid)) {
+      this.transactionHistory.set(pid, []);
+    }
+    this.transactionHistory.get(pid)!.unshift(transaction);
+
+    // Remove the game
+    this.games.delete(gameId);
+
+    // Send success message with updated balance
+    sender.send(
+      JSON.stringify({
+        type: "game-cancelled",
+        gameId,
+        newBalance: this.walletBalances.get(pid),
+        message:
+          "Game cancelled successfully. $25 has been refunded to your account.",
+      })
+    );
+
+    // Broadcast updated game lists to all clients
     this.broadcastGameList();
   }
 
@@ -710,6 +829,10 @@ export default class GameServer implements Party.Server {
   // Add method to get wallet balance
   private handleGetWalletBalance(sender: Party.Connection, senderId?: string) {
     const pid = senderId ?? sender.id;
+
+    // Initialize wallet if this is a new user
+    this.initializeWallet(pid);
+
     const balance = this.walletBalances.get(pid) || 1000;
     const transactions = this.transactionHistory.get(pid) || [];
 

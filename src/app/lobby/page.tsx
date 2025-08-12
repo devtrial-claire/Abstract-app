@@ -190,7 +190,7 @@ export default function LobbyPage() {
   // Disconnect confirmation state
 
   const socket = usePartySocket({
-    host: "c61a0ed7673a.ngrok-free.app",
+    host: "c577bc3f4edb.ngrok-free.app",
     room: "my-new-room",
   });
 

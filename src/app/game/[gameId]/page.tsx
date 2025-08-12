@@ -38,7 +38,7 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
   );
 
   const socket = usePartySocket({
-    host: "c61a0ed7673a.ngrok-free.app",
+    host: "c577bc3f4edb.ngrok-free.app",
     room: "my-new-room",
   });
 
@@ -82,6 +82,13 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
           setErrorMessage("Rematch failed for unknown reason");
         }
         setShowError(true);
+        return;
+      }
+
+      // Handle game cancellation
+      if (data.type === "game-cancelled" && data.gameId === params.gameId) {
+        console.log("Game cancelled, redirecting to lobby");
+        router.push("/lobby");
         return;
       }
 
@@ -160,7 +167,7 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
     console.log("Rendering WaitingRoom - gameState:", gameState);
     return (
       <>
-        <WaitingRoom />
+        <WaitingRoom gameId={params.gameId} />
         <ErrorPopup
           message={errorMessage || ""}
           isVisible={showError}
