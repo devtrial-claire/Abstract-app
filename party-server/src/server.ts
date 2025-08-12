@@ -396,13 +396,13 @@ export default class GameServer implements Party.Server {
       game.winner = game.players[0];
       game.loser = game.players[1];
       // Handle wallet transfers for winner
-      this.handleGameResult(game.winner, game.loser);
+      this.handleGameResult(game.winner, game.loser, game);
     } else if (player2Total > player1Total) {
       game.status = "2nd_player_won";
       game.winner = game.players[1];
       game.loser = game.players[0];
       // Handle wallet transfers for winner
-      this.handleGameResult(game.winner, game.loser);
+      this.handleGameResult(game.winner, game.loser, game);
     } else {
       game.status = "draw";
       // Handle draw - both players get their $25 back
@@ -410,10 +410,22 @@ export default class GameServer implements Party.Server {
     }
   }
 
-  private handleGameResult(winner: string, loser: string) {
-    // Winner gets the opponent's $25 (total gain: $25)
+  private handleGameResult(winner: string, loser: string, game: GameState) {
+    // Calculate total card values from both players
+    const [player1Cards, player2Cards] = game.cards;
+    const player1Total = player1Cards.reduce(
+      (sum, card) => sum + parseInt(card.split("#")[1]),
+      0
+    );
+    const player2Total = player2Cards.reduce(
+      (sum, card) => sum + parseInt(card.split("#")[1]),
+      0
+    );
+    const totalCardValue = player1Total + player2Total;
+
+    // Winner gets the sum of all card values
     const winnerBalance = this.walletBalances.get(winner) || 1000;
-    this.walletBalances.set(winner, winnerBalance + 50);
+    this.walletBalances.set(winner, winnerBalance + totalCardValue);
 
     // Loser keeps their $25 (they already paid it when joining)
     // No additional deduction needed
@@ -422,10 +434,10 @@ export default class GameServer implements Party.Server {
     const winnerTransaction = {
       id: Date.now().toString(),
       type: "game_won",
-      amount: 25 + 25,
+      amount: totalCardValue,
       gameId: "game-result",
       timestamp: new Date(),
-      description: "Won Battle - Earned opponent's $25",
+      description: `Won Battle - Earned $${totalCardValue} (sum of all card values)`,
     };
 
     const loserTransaction = {
