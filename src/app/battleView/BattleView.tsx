@@ -233,7 +233,9 @@ export function BattleView({
                   <div className="text-2xl font-semibold text-yellow-200">
                     DRAW!
                   </div>
-                  <div className="text-lg text-gray-300 mt-2">It&apos;s a tie!</div>
+                  <div className="text-lg text-gray-300 mt-2">
+                    It&apos;s a tie!
+                  </div>
                 </>
               ) : currentUserWon ? (
                 <>

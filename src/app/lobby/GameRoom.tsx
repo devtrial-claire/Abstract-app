@@ -3,10 +3,6 @@
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-
-
-
-
 interface GameRoomProps {
   gameId: string;
 }
@@ -14,10 +10,7 @@ interface GameRoomProps {
 export function GameRoom({ gameId }: GameRoomProps) {
   const router = useRouter();
 
-  console.log(
-    "GameRoom component rendered with gameId:",
-    gameId
-  );
+  console.log("GameRoom component rendered with gameId:", gameId);
 
   // Redirect immediately when GameRoom renders
   useEffect(() => {

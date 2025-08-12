@@ -25,10 +25,15 @@ interface GameState {
   canRematch?: boolean;
 }
 
-export default function GamePage({ params }: { params: { gameId: string } }) {
+export default function GamePage({
+  params,
+}: {
+  params: Promise<{ gameId: string }>;
+}) {
   const router = useRouter();
   const { address: myId } = useAccount();
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const [gameId, setGameId] = useState<string>("");
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showError, setShowError] = useState(false);
@@ -37,13 +42,20 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
     null
   );
 
+  // Extract gameId from params when component mounts
+  useEffect(() => {
+    params.then(({ gameId: id }) => {
+      setGameId(id);
+    });
+  }, [params]);
+
   const socket = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST || "localhost:1999",
     room: "my-new-room",
   });
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !gameId) return;
 
     const handleMessage = (event: MessageEvent) => {
       const data = JSON.parse(event.data);
@@ -60,7 +72,7 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
       // Handle rematch game creation
       if (
         data.type === "rematch-game-created" &&
-        data.originalGameId === params.gameId
+        data.originalGameId === gameId
       ) {
         console.log("Rematch game created, redirecting to:", data.newGameId);
         router.push(`/game/${data.newGameId}`);
@@ -68,10 +80,7 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
       }
 
       // Handle rematch failure
-      if (
-        data.type === "rematch-failed" &&
-        data.originalGameId === params.gameId
-      ) {
+      if (data.type === "rematch-failed" && data.originalGameId === gameId) {
         console.log("Rematch failed:", data.reason);
         if (data.reason === "insufficient_balance") {
           setErrorMessage(
@@ -85,7 +94,7 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
       }
 
       // Handle game cancellation
-      if (data.type === "game-cancelled" && data.gameId === params.gameId) {
+      if (data.type === "game-cancelled" && data.gameId === gameId) {
         console.log("Game cancelled, redirecting to lobby");
         router.push("/lobby");
         return;
@@ -97,12 +106,9 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
         setErrorMessage(data.message);
 
         // Check if this is the "active game" error and we have a current game ID
-        if (
-          data.message.includes("already have an active game") &&
-          params.gameId
-        ) {
+        if (data.message.includes("already have an active game") && gameId) {
           setShowRejoinButton(true);
-          setPlayerCurrentGameId(params.gameId);
+          setPlayerCurrentGameId(gameId);
         } else {
           setShowRejoinButton(false);
         }
@@ -115,7 +121,7 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
       socket.send(
         JSON.stringify({
           type: "game-state",
-          gameId: params.gameId,
+          gameId: gameId,
           senderId: myId,
         })
       );
@@ -126,7 +132,7 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
     else socket.addEventListener("open", request, { once: true });
 
     return () => socket.removeEventListener("message", handleMessage);
-  }, [socket, params.gameId, myId, router]);
+  }, [socket, gameId, myId, router]);
 
   const handleLeaveGame = (gameStatus: GameStatus) => {
     // Only allow leaving if the game is finished
@@ -153,19 +159,26 @@ export default function GamePage({ params }: { params: { gameId: string } }) {
     }
   };
 
-  console.log(
-    "Game page render - gameState:",
-    gameState,
-    "gameId:",
-    params.gameId
-  );
+  // Don't render anything until we have the gameId
+  if (!gameId) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin w-16 h-16 border-4 border-white border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-lg">Loading game...</p>
+        </div>
+      </div>
+    );
+  }
+
+  console.log("Game page render - gameState:", gameState, "gameId:", gameId);
 
   // Show waiting room if game is not loaded yet or if waiting for players
   if (!gameState || gameState.status === "waiting-for-players") {
     console.log("Rendering WaitingRoom - gameState:", gameState);
     return (
       <>
-        <WaitingRoom gameId={params.gameId} />
+        <WaitingRoom gameId={gameId} />
         <ErrorPopup
           message={errorMessage || ""}
           isVisible={showError}

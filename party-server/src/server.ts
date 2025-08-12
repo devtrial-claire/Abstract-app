@@ -5,7 +5,7 @@ export default class GameServer implements Party.Server {
 
   // Store game state
   games = new Map<string, GameState>();
-  connections = new Set<Party.Connection>();
+  connections = new Set<Party.gConnection>();
 
   // Store wallet balances and transaction history
   walletBalances = new Map<string, number>();
@@ -14,7 +14,7 @@ export default class GameServer implements Party.Server {
   // Store rematch requests
   rematchRequests = new Map<string, Set<string>>();
 
-  onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
+  onConnect(conn: Party.gConnection, ctx: Party.ConnectionContext) {
     // A new websocket connection is established
     this.connections.add(conn);
     conn.send(JSON.stringify({ type: "connected", id: conn.id }));
@@ -28,7 +28,7 @@ export default class GameServer implements Party.Server {
     );
   }
 
-  onClose(conn: Party.Connection) {
+  onClose(conn: Party.gConnection) {
     // Remove connection when closed
     this.connections.delete(conn);
 
@@ -48,7 +48,7 @@ export default class GameServer implements Party.Server {
     }
   }
 
-  onMessage(message: string, sender: Party.Connection) {
+  onMessage(message: string, sender: Party.gConnection) {
     try {
       // Skip ping/pong messages
       if (message === "ping" || message === "pong") return;
@@ -119,7 +119,7 @@ export default class GameServer implements Party.Server {
     }
   }
 
-  private handleCreateGame(sender: Party.Connection, senderId?: string) {
+  private handleCreateGame(sender: Party.gConnection, senderId?: string) {
     const pid = senderId ?? sender.id;
 
     // Initialize wallet if this is a new user
@@ -204,7 +204,7 @@ export default class GameServer implements Party.Server {
 
   private handleJoinGame(
     gameId: string,
-    sender: Party.Connection,
+    sender: Party.gConnection,
     senderId?: string
   ) {
     const game = this.games.get(gameId);
@@ -326,7 +326,7 @@ export default class GameServer implements Party.Server {
     this.broadcastGameList();
   }
 
-  private handleGetGameState(gameId: string, sender: Party.Connection) {
+  private handleGetGameState(gameId: string, sender: Party.gConnection) {
     const game = this.games.get(gameId);
     if (game) {
       sender.send(
@@ -498,7 +498,7 @@ export default class GameServer implements Party.Server {
 
   private handleRematchRequest(
     gameId: string,
-    sender: Party.Connection,
+    sender: Party.gConnection,
     senderId?: string
   ) {
     const game = this.games.get(gameId);
@@ -530,7 +530,7 @@ export default class GameServer implements Party.Server {
 
   private handleAcceptRematch(
     gameId: string,
-    sender: Party.Connection,
+    sender: Party.gConnection,
     senderId?: string
   ) {
     // For now, treat accept-rematch the same as request-rematch
@@ -641,7 +641,7 @@ export default class GameServer implements Party.Server {
 
   private handleCancelGame(
     gameId: string,
-    sender: Party.Connection,
+    sender: Party.gConnection,
     senderId?: string
   ) {
     const game = this.games.get(gameId);
@@ -827,7 +827,7 @@ export default class GameServer implements Party.Server {
   }
 
   // Add method to get wallet balance
-  private handleGetWalletBalance(sender: Party.Connection, senderId?: string) {
+  private handleGetWalletBalance(sender: Party.gConnection, senderId?: string) {
     const pid = senderId ?? sender.id;
 
     // Initialize wallet if this is a new user

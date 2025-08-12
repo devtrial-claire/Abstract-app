@@ -374,8 +374,6 @@ export default function LobbyPage() {
     }
   };
 
-
-
   const handleRejoinGame = () => {
     console.log(
       "handleRejoinGame called with playerCurrentGameId:",
