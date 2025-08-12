@@ -24,7 +24,7 @@ export function WaitingRoom({ gameId, onCancel }: WaitingRoomProps) {
   const { address: myId } = useAccount();
   const [gameState, setGameState] = useState<GameState | null>(null);
   const socket = usePartySocket({
-    host: "c577bc3f4edb.ngrok-free.app",
+    host: process.env.NEXT_PUBLIC_PARTYKIT_HOST || "localhost:1999",
     room: "my-new-room",
   });
 

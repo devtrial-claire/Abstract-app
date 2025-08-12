@@ -1,17 +1,21 @@
 {
   "$schema": "https://www.partykit.io/schema.json",
-  "name": "party-server",
+  "name": "gacha-game-server",
   "main": "src/server.ts",
+  "compatibilityDate": "2025-08-12",
   "serve": {
     "path": "public",
     "build": "src/client.ts",
     "cors": {
-      "origins": ["*"],
+      "origins": [
+        "https://gacha-game-server.elmobbb.partykit.dev",
+        "http://localhost:3000"
+      ],
       "methods": ["GET", "POST", "OPTIONS"],
       "credentials": true
     }
   },
   "vars": {
-    "DEBUG": "true"
+    "DEBUG": "false"
   }
 }
