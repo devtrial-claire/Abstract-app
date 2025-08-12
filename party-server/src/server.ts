@@ -5,7 +5,7 @@ export default class GameServer implements Party.Server {
 
   // Store game state
   games = new Map<string, GameState>();
-  connections = new Set<Party.gConnection>();
+  connections = new Set<Party.Connection>();
 
   // Store wallet balances and transaction history
   walletBalances = new Map<string, number>();

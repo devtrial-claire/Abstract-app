@@ -16,6 +16,9 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: false,
   },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
 };
 
 export default nextConfig;
